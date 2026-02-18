@@ -22,6 +22,11 @@ func HandleUDP(conn io.ReadWriteCloser, dialer Dialer) error {
 	}
 	defer udpConn.Close()
 
+	if c, ok := udpConn.(*net.UDPConn); ok {
+		c.SetReadBuffer(4 * 1024 * 1024)
+		c.SetWriteBuffer(4 * 1024 * 1024)
+	}
+
 	addr := udpConn.LocalAddr().(*net.UDPAddr)
 	log.Printf("[SOCKS5] UDP Associate bound to %s", addr)
 

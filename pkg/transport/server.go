@@ -9,6 +9,7 @@ import (
 	"phoenix/pkg/adapter/ssh"
 	"phoenix/pkg/config"
 	"phoenix/pkg/protocol"
+	"time"
 
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
@@ -138,7 +139,11 @@ func (s *H2Stream) Close() error {
 // StartServer starts the H2C server.
 func StartServer(cfg *config.ServerConfig) error {
 	srv := NewServer(cfg)
-	h2s := &http2.Server{}
+	h2s := &http2.Server{
+		MaxConcurrentStreams: 500,         // Increase concurrency
+		MaxReadFrameSize:     1024 * 1024, // 1MB frames if possible
+		IdleTimeout:          10 * time.Second,
+	}
 	handler := h2c.NewHandler(srv, h2s)
 
 	s := &http.Server{
@@ -146,6 +151,7 @@ func StartServer(cfg *config.ServerConfig) error {
 		Handler:      handler,
 		ReadTimeout:  0, // Disable read timeout for streaming
 		WriteTimeout: 0, // Disable write timeout for streaming
+		IdleTimeout:  0, // Disable idle timeout
 	}
 
 	log.Printf("Listening on %s", cfg.ListenAddr)

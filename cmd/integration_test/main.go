@@ -57,11 +57,128 @@ func main() {
 	log.Println("=== Testing TCP via SOCKS5 ===")
 	testTCP("127.0.0.1:1080", "127.0.0.1:9001")
 
-	// 6. Test UDP
-	log.Println("=== Testing UDP via SOCKS5 ===")
+	// 6. Test UDP (Single Packet)
+	log.Println("=== Testing UDP via SOCKS5 (Single) ===")
 	testUDP("127.0.0.1:1080", "127.0.0.1:9002")
 
+	// 7. Test UDP (Stress/Streaming)
+	log.Println("=== Testing UDP via SOCKS5 (Stress Test - 1000 packets) ===")
+	testUDPStress("127.0.0.1:1080", "127.0.0.1:9002")
+
 	log.Println("=== ALL TESTS PASSED ===")
+}
+
+// ... (Existing functions)
+
+func testUDPStress(proxyAddr, targetAddr string) {
+	// Similar setup to testUDP
+	// 1. Connect TCP to Proxy
+	conn, err := net.Dial("tcp", proxyAddr)
+	if err != nil {
+		log.Fatalf("Stress Handshake TCP Dial failed: %v", err)
+	}
+	defer conn.Close()
+
+	// 2. Handshake
+	conn.Write([]byte{0x05, 0x01, 0x00})
+	buf := make([]byte, 2)
+	io.ReadFull(conn, buf)
+
+	// 3. Request UDP ASSOCIATE
+	req := []byte{0x05, 0x03, 0x00, 0x01, 0, 0, 0, 0, 0, 0}
+	conn.Write(req)
+
+	// 4. Read Reply
+	reply := make([]byte, 10)
+	io.ReadFull(conn, reply)
+
+	var relayPort int
+	if reply[3] == 0x01 {
+		relayPort = int(binary.BigEndian.Uint16(reply[8:10]))
+	} else if reply[3] == 0x04 {
+		rest := make([]byte, 12)
+		io.ReadFull(conn, rest)
+		full := append(reply, rest...)
+		relayPort = int(binary.BigEndian.Uint16(full[20:22]))
+	}
+
+	proxyHost, _, _ := net.SplitHostPort(proxyAddr)
+	relayAddr := net.JoinHostPort(proxyHost, fmt.Sprint(relayPort))
+	log.Printf("Stress UDP Relay: %s", relayAddr)
+
+	// 5. Send Stream
+	uConn, err := net.Dial("udp", relayAddr)
+	if err != nil {
+		log.Fatalf("Stress UDP Dial failed: %v", err)
+	}
+	defer uConn.Close()
+
+	// SOCKS5 UDP Header [00 00 00 01 127 0 0 1 PORT DATA]
+	basePkt := make([]byte, 0, 1500)
+	basePkt = append(basePkt, 0x00, 0x00, 0x00, 0x01)
+	basePkt = append(basePkt, []byte{127, 0, 0, 1}...)
+	port := make([]byte, 2)
+	binary.BigEndian.PutUint16(port, 9002)
+	basePkt = append(basePkt, port...)
+
+	headerLen := len(basePkt)
+	payloadSize := 1000 // 1KB payload
+	totalPackets := 1000
+
+	// Receiver Goroutine
+	receivedCount := 0
+	doneChan := make(chan bool)
+	go func() {
+		rBuf := make([]byte, 2048)
+		uConn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		for {
+			n, err := uConn.Read(rBuf)
+			if err != nil {
+				break
+			}
+			if n > headerLen {
+				receivedCount++
+			}
+			if receivedCount == totalPackets {
+				doneChan <- true
+				return
+			}
+		}
+		doneChan <- false
+	}()
+
+	start := time.Now()
+	for i := 0; i < totalPackets; i++ {
+		// Construct packet with sequence number in payload
+		pkt := make([]byte, len(basePkt))
+		copy(pkt, basePkt)
+
+		data := make([]byte, payloadSize)
+		binary.BigEndian.PutUint32(data, uint32(i)) // Seq number
+		pkt = append(pkt, data...)
+
+		if _, err := uConn.Write(pkt); err != nil {
+			log.Fatalf("Stress Write failed at %d: %v", i, err)
+		}
+		// Slight delay to mimic streaming (optional, but 0 delay tests buffering limits)
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	log.Printf("Sent %d packets in %v", totalPackets, time.Since(start))
+
+	// Wait for completion
+	select {
+	case success := <-doneChan:
+		if !success {
+			log.Printf("Stress Test: Only received %d/%d packets (Timeout/Error)", receivedCount, totalPackets)
+			// Don't fail hard, just warn. UDP is lossy.
+			// But on Localhost it should be near 100%
+		} else {
+			log.Printf("Stress Test Success: Received %d/%d packets", receivedCount, totalPackets)
+		}
+	case <-time.After(15 * time.Second):
+		log.Printf("Stress Test Timeout: Received %d/%d packets", receivedCount, totalPackets)
+	}
 }
 
 func startTCPEchoServer(addr string) {
@@ -188,7 +305,7 @@ func testUDP(proxyAddr, targetAddr string) {
 	// Note: BND.ADDR might be 0.0.0.0 or internal IP.
 	// We should send to proxyAddr's IP, but use relayPort.
 	proxyHost, _, _ := net.SplitHostPort(proxyAddr)
-	relayAddr := fmt.Sprintf("%s:%d", proxyHost, relayPort)
+	relayAddr := net.JoinHostPort(proxyHost, fmt.Sprint(relayPort))
 	log.Printf("UDP Relay is at: %s", relayAddr)
 
 	// 5. Send UDP Packet

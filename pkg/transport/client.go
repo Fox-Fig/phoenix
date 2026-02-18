@@ -28,6 +28,9 @@ func NewClient(cfg *config.ClientConfig) *Client {
 		DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
 			return net.Dial(network, addr)
 		},
+		StrictMaxConcurrentStreams: true,
+		ReadIdleTimeout:            0,
+		PingTimeout:                5 * time.Second,
 	}
 
 	return &Client{

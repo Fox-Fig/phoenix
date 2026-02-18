@@ -21,6 +21,12 @@ func HandleUDPTunnel(stream io.ReadWriteCloser) error {
 	}
 	defer udpConn.Close()
 
+	// Increase socket buffers to handle bursts (e.g. YouTube QUIC)
+	if c, ok := udpConn.(*net.UDPConn); ok {
+		c.SetReadBuffer(4 * 1024 * 1024)
+		c.SetWriteBuffer(4 * 1024 * 1024)
+	}
+
 	// 2. Stream -> UDP Loop
 	errChan := make(chan error, 2)
 	go func() {
