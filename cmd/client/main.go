@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"phoenix/pkg/adapter/socks5"
 	"phoenix/pkg/config"
+	"phoenix/pkg/crypto"
 	"phoenix/pkg/protocol"
 	"phoenix/pkg/transport"
 	"sync"
@@ -35,7 +36,22 @@ func (d *PhoenixTunnelDialer) Dial(target string) (io.ReadWriteCloser, error) {
 func main() {
 	configPath := flag.String("config", "client.toml", "Path to client configuration file")
 	getSS := flag.Bool("get-ss", false, "Generate Shadowsocks config from client config")
+	genKeys := flag.Bool("gen-keys", false, "Generate a new pair of Ed25519 keys (public/private)")
 	flag.Parse()
+
+	if *genKeys {
+		priv, pub, err := crypto.GenerateKeypair()
+		if err != nil {
+			log.Fatalf("Failed to generate keys: %v", err)
+		}
+		if err := os.WriteFile("client_private.key", priv, 0600); err != nil {
+			log.Fatalf("Failed to save private key: %v", err)
+		}
+		fmt.Printf("Client Keys generated successfully.\n")
+		fmt.Printf("Private Key: client_private.key (Keep this secret!)\n")
+		fmt.Printf("Public Key:  %s (Add this to Server's authorized_clients)\n", pub)
+		return
+	}
 
 	cfg, err := config.LoadClientConfig(*configPath)
 	if err != nil {
