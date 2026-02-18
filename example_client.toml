@@ -3,10 +3,16 @@
 # The client connects to the Phoenix server and opens multiple local listeners.
 
 # remote_addr: The address of the Phoenix server.
-# The client connects to the server using HTTP/2 Cleartext (h2c) for optimal performance and stealth.
-# h2c allows multiple inbound connections (SOCKS5, SSH, etc.) to share a single TCP connection.
-# Example: "example.com:8080"
+# Example: "example.com:8080" (h2c) or "example.com:8443" (mTLS)
 remote_addr = "127.0.0.1:8080"
+
+# --- Secure Authentication (mTLS) ---
+# To enable secure mode (RECOMMENDED), generate keys with `./server -gen-keys`.
+# You must provide your Private Key path and the Server's Public Key.
+# If these are set, the client automatically uses mutual TLS (h2).
+#
+# private_key = "client.private.key"
+# server_public_key = "SERVER_PUBLIC_KEY..."
 
 # [[inbounds]]: Defines a list of local listeners.
 # Each inbound listener opens a local port and tunnels traffic of a specific protocol.
