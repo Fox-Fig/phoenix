@@ -155,9 +155,17 @@ func HandleUDP(conn io.ReadWriteCloser, dialer Dialer) error {
 
 	// Wait for TCP close
 	go func() {
-		buf := make([]byte, 1)
-		conn.Read(buf) // Block until EOF
-		errChan <- fmt.Errorf("tcp control connection closed")
+		buf := make([]byte, 1024)
+		for {
+			_, err := conn.Read(buf)
+			if err != nil {
+				// EOF or Connection Reset
+				errChan <- fmt.Errorf("tcp control connection closed: %v", err)
+				return
+			}
+			// If data is received (e.g. Keep-Alive), ignore it and continue reading.
+			// RFC 1928 doesn't specify data on control conn, but robustness is key.
+		}
 	}()
 
 	return <-errChan
