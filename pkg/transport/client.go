@@ -2,8 +2,8 @@ package transport
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"phoenix/pkg/config"
@@ -82,7 +82,7 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 	case resp := <-respChan:
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return nil, log.Output(2, "Server rejected connection") // Simplified error
+			return nil, fmt.Errorf("server rejected connection with status: %d", resp.StatusCode)
 		}
 		return &Stream{
 			Writer: pw,
@@ -91,8 +91,8 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 		}, nil
 	case err := <-errChan:
 		return nil, err
-	case <-time.After(5 * time.Second):
-		return nil, log.Output(2, "Connection timeout") // Simplified
+	case <-time.After(10 * time.Second):
+		return nil, fmt.Errorf("connection to server timed out")
 	}
 }
 
