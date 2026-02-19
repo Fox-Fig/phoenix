@@ -5,7 +5,7 @@
     <img src="https://img.shields.io/badge/License-GPLv2-blue.svg" alt="License">
     <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go" alt="Go Version">
     <img src="https://github.com/Selin2005/phoenix/actions/workflows/deploy.yml/badge.svg" alt="Build Status">
-    <img src="https://img.shields.io/github/v/release/Selin2005/phoenix?include_prereleases" alt="Latest Release">
+    <a href="https://selin2005.github.io/phoenix/"><img src="https://img.shields.io/github/v/release/Selin2005/phoenix?include_prereleases" alt="Latest Release"></a>
   </p>
   <p><strong>Phoenix</strong> is a high-performance, resilient tunneling tool designed to bypass DPI and severe network censorship using <strong>HTTP/2 (h2/h2c)</strong> multiplexing.</p>
 
