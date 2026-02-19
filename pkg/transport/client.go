@@ -28,6 +28,7 @@ type Client struct {
 	Scheme       string
 	failureCount uint32       // Atomic counter
 	mu           sync.RWMutex // Protects httpClient
+	lastReset    time.Time    // Timestamp of last reset (for debounce)
 }
 
 // NewClient creates a new Phoenix client instance.
@@ -203,9 +204,12 @@ func (c *Client) resetClient() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Double check failure count (optimization)
-	// If reset already happened, count might be 0 or low.
-	// But we aggressively reset if called.
+	// Debounce: Check if we reset recently (e.g. within 5 seconds)
+	if time.Since(c.lastReset) < 5*time.Second {
+		// Reset already happened recently. Just ensure failure count is low and return.
+		atomic.StoreUint32(&c.failureCount, 0)
+		return
+	}
 
 	log.Println("WARNING: Network unstable. Destroying and recreating HTTP client (Hard Reset)...")
 
@@ -218,11 +222,12 @@ func (c *Client) resetClient() {
 	// Note: Creating new http.Client creates new Transport, which creates new TCP connection pool.
 	c.httpClient = c.createHTTPClient()
 
-	// Reset failure count
+	// Update timestamp and reset failure count
+	c.lastReset = time.Now()
 	atomic.StoreUint32(&c.failureCount, 0)
 
 	// Backoff
-	time.Sleep(2 * time.Second)
+	time.Sleep(1 * time.Second)
 	log.Println("Client re-initialized. Ready for new connections.")
 }
 
