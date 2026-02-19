@@ -14,6 +14,7 @@ import (
 	"phoenix/pkg/config"
 	"phoenix/pkg/crypto"
 	"phoenix/pkg/protocol"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,45 +24,59 @@ import (
 // Client handles outgoing connections to the Server.
 type Client struct {
 	Config       *config.ClientConfig
-	Client       *http.Client
+	httpClient   *http.Client // Internal HTTP client (protected by mu)
 	Scheme       string
-	failureCount uint32 // Atomic counter
+	failureCount uint32       // Atomic counter
+	mu           sync.RWMutex // Protects httpClient
 }
 
 // NewClient creates a new Phoenix client instance.
 func NewClient(cfg *config.ClientConfig) *Client {
+	c := &Client{
+		Config: cfg,
+	}
+
+	// Initialize scheme based on config
+	if cfg.PrivateKeyPath != "" || cfg.ServerPublicKey != "" {
+		c.Scheme = "https"
+	} else {
+		c.Scheme = "http"
+	}
+
+	// Initialize the first HTTP client
+	c.httpClient = c.createHTTPClient()
+	return c
+}
+
+// createHTTPClient creates a fresh http.Client based on configuration.
+func (c *Client) createHTTPClient() *http.Client {
 	var tr *http2.Transport
-	scheme := "http"
 
 	// Check if Secure Mode is requested (mTLS or One-Way TLS)
 	// Requires either PrivateKey (mTLS) OR ServerPublicKey (One-Way)
-	if cfg.PrivateKeyPath != "" || cfg.ServerPublicKey != "" {
-		log.Println("Initializing Client in SECURE mode (TLS)")
-		scheme = "https"
+	if c.Config.PrivateKeyPath != "" || c.Config.ServerPublicKey != "" {
+		log.Println("Creating SECURE transport (TLS)")
 
 		var certs []tls.Certificate
-		if cfg.PrivateKeyPath != "" {
-			priv, err := crypto.LoadPrivateKey(cfg.PrivateKeyPath)
+		if c.Config.PrivateKeyPath != "" {
+			priv, err := crypto.LoadPrivateKey(c.Config.PrivateKeyPath)
 			if err != nil {
-				log.Fatalf("Failed to load private key: %v", err)
+				log.Printf("Failed to load private key: %v", err) // Should we panic? Maybe just log here to allow retry
+			} else {
+				cert, err := crypto.GenerateTLSCertificate(priv)
+				if err != nil {
+					log.Printf("Failed to generate TLS cert: %v", err)
+				} else {
+					certs = []tls.Certificate{cert}
+				}
 			}
-			cert, err := crypto.GenerateTLSCertificate(priv)
-			if err != nil {
-				log.Fatalf("Failed to generate TLS cert: %v", err)
-			}
-			certs = []tls.Certificate{cert}
-		} else {
-			log.Println("No private_key provided. Using One-Way TLS (Anonymous Client).")
 		}
 
 		tlsConfig := &tls.Config{
 			Certificates:       certs,
 			InsecureSkipVerify: true, // We use custom verification
 			VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
-				if cfg.ServerPublicKey == "" {
-					// Pinning disabled. Insecure against MITM.
-					// Allow it? For "easy setup"? User requested "security multiplied".
-					// But we will allow it with warning if user explicitly omits key.
+				if c.Config.ServerPublicKey == "" {
 					log.Println("WARNING: server_public_key NOT SET. Connection vulnerable to MITM.")
 					return nil
 				}
@@ -81,8 +96,8 @@ func NewClient(cfg *config.ClientConfig) *Client {
 				}
 
 				pubStr := base64.StdEncoding.EncodeToString(pubBytes)
-				if pubStr != cfg.ServerPublicKey {
-					return fmt.Errorf("server key verification failed. Expected %s, Got %s", cfg.ServerPublicKey, pubStr)
+				if pubStr != c.Config.ServerPublicKey {
+					return fmt.Errorf("server key verification failed. Expected %s, Got %s", c.Config.ServerPublicKey, pubStr)
 				}
 				return nil
 			},
@@ -97,7 +112,7 @@ func NewClient(cfg *config.ClientConfig) *Client {
 
 	} else {
 		// INSECURE MODE (h2c)
-		log.Println("Initializing Client in INSECURE mode (h2c)")
+		log.Println("Creating INSECURE transport (h2c)")
 		tr = &http2.Transport{
 			AllowHTTP: true,
 			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
@@ -109,17 +124,16 @@ func NewClient(cfg *config.ClientConfig) *Client {
 		}
 	}
 
-	return &Client{
-		Config: cfg,
-		Client: &http.Client{Transport: tr},
-		Scheme: scheme,
-	}
+	return &http.Client{Transport: tr}
 }
 
 // Dial initiates a tunnel for a specific protocol.
 // It connects to the server and returns the stream to be used by the local listener.
 func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteCloser, error) {
-	// Circuit Breaker Check (Optional: Fail fast if in recovery state? No, let's try)
+	// Get current HTTP client (Read Lock)
+	c.mu.RLock()
+	client := c.httpClient
+	c.mu.RUnlock()
 
 	// We use io.Pipe to bridge the local connection to the request body.
 	pr, pw := io.Pipe()
@@ -139,7 +153,8 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 	errChan := make(chan error, 1)
 
 	go func() {
-		resp, err := c.Client.Do(req)
+		// Use the captured client instance
+		resp, err := client.Do(req)
 		if err != nil {
 			errChan <- err
 			return
@@ -173,24 +188,42 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 	}
 }
 
-// handleConnectionFailure increments failure count and forces reconnect if threshold exceeded.
+// handleConnectionFailure increments failure count and triggers Hard Reset if needed.
 func (c *Client) handleConnectionFailure(err error) {
 	newCount := atomic.AddUint32(&c.failureCount, 1)
 	log.Printf("Connection Error (%d/3): %v", newCount, err)
 
 	if newCount >= 3 {
-		log.Println("WARNING: Connection unstable (3 consecutive failures). Forcing transport reset...")
-
-		// Force Close Idle Connections to drop zombie TCP connections
-		c.Client.CloseIdleConnections()
-
-		// Reset counter immediate or after backoff?
-		// We reset it so next try starts fresh.
-		atomic.StoreUint32(&c.failureCount, 0)
-
-		// Backoff to prevent spinning
-		time.Sleep(1 * time.Second)
+		c.resetClient()
 	}
+}
+
+// resetClient destroys the old HTTP connection and creates a fresh one.
+func (c *Client) resetClient() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Double check failure count (optimization)
+	// If reset already happened, count might be 0 or low.
+	// But we aggressively reset if called.
+
+	log.Println("WARNING: Network unstable. Destroying and recreating HTTP client (Hard Reset)...")
+
+	// Close old connections to free resources
+	if c.httpClient != nil {
+		c.httpClient.CloseIdleConnections()
+	}
+
+	// Create new client
+	// Note: Creating new http.Client creates new Transport, which creates new TCP connection pool.
+	c.httpClient = c.createHTTPClient()
+
+	// Reset failure count
+	atomic.StoreUint32(&c.failureCount, 0)
+
+	// Backoff
+	time.Sleep(2 * time.Second)
+	log.Println("Client re-initialized. Ready for new connections.")
 }
 
 // Stream wraps the pipe endpoint to implement io.ReadWriteCloser.
