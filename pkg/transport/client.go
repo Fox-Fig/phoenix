@@ -14,6 +14,7 @@ import (
 	"phoenix/pkg/config"
 	"phoenix/pkg/crypto"
 	"phoenix/pkg/protocol"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/net/http2"
@@ -21,9 +22,10 @@ import (
 
 // Client handles outgoing connections to the Server.
 type Client struct {
-	Config *config.ClientConfig
-	Client *http.Client
-	Scheme string
+	Config       *config.ClientConfig
+	Client       *http.Client
+	Scheme       string
+	failureCount uint32 // Atomic counter
 }
 
 // NewClient creates a new Phoenix client instance.
@@ -117,6 +119,8 @@ func NewClient(cfg *config.ClientConfig) *Client {
 // Dial initiates a tunnel for a specific protocol.
 // It connects to the server and returns the stream to be used by the local listener.
 func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteCloser, error) {
+	// Circuit Breaker Check (Optional: Fail fast if in recovery state? No, let's try)
+
 	// We use io.Pipe to bridge the local connection to the request body.
 	pr, pw := io.Pipe()
 
@@ -130,10 +134,6 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 	if target != "" {
 		req.Header.Set("X-Nerve-Target", target)
 	}
-	// req.Header.Set("Upgrade", "h2c") // Not strictly needed with AllowHTTP=true client transport
-
-	// Execute request asynchronously because the body (pr) will block until written to.
-	// We return a ReadWriteCloser that writes to pw and reads from resp.Body.
 
 	respChan := make(chan *http.Response, 1)
 	errChan := make(chan error, 1)
@@ -147,17 +147,11 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 		respChan <- resp
 	}()
 
-	// Wait for response headers (indicating connection established) or error.
-	// Note: since we're piping the request body, the server might not reply until we send data if it buffers.
-	// However, standard http client sends headers first.
-	// But `Do` blocks until response headers are received. If the server waits for body before ANY response, deadlock!
-	// H2C should support full duplex streaming.
-	// BUT, http.Client.Do generally waits for response headers.
-	// If the server doesn't send headers immediately, we're stuck.
-	// Server MUST write headers immediately on `ServeHTTP`. (w.WriteHeader + Flush)
-
 	select {
 	case resp := <-respChan:
+		// Connection Successful
+		atomic.StoreUint32(&c.failureCount, 0) // Reset failure count
+
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
 			return nil, fmt.Errorf("server rejected connection with status: %d", resp.StatusCode)
@@ -167,10 +161,35 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 			Reader: resp.Body,
 			Closer: resp.Body,
 		}, nil
+
 	case err := <-errChan:
+		c.handleConnectionFailure(err)
 		return nil, err
+
 	case <-time.After(10 * time.Second):
-		return nil, fmt.Errorf("connection to server timed out")
+		err := fmt.Errorf("connection to server timed out")
+		c.handleConnectionFailure(err)
+		return nil, err
+	}
+}
+
+// handleConnectionFailure increments failure count and forces reconnect if threshold exceeded.
+func (c *Client) handleConnectionFailure(err error) {
+	newCount := atomic.AddUint32(&c.failureCount, 1)
+	log.Printf("Connection Error (%d/3): %v", newCount, err)
+
+	if newCount >= 3 {
+		log.Println("WARNING: Connection unstable (3 consecutive failures). Forcing transport reset...")
+
+		// Force Close Idle Connections to drop zombie TCP connections
+		c.Client.CloseIdleConnections()
+
+		// Reset counter immediate or after backoff?
+		// We reset it so next try starts fresh.
+		atomic.StoreUint32(&c.failureCount, 0)
+
+		// Backoff to prevent spinning
+		time.Sleep(1 * time.Second)
 	}
 }
 
