@@ -9,7 +9,7 @@
   </p>
   <p><strong>Phoenix</strong> is a high-performance, resilient tunneling tool designed to bypass DPI and severe network censorship using <strong>HTTP/2 (h2/h2c)</strong> multiplexing.</p>
 
-  [🇮🇷 Read in Persian (فارسی) 🇮🇷](README-fa.md) | [📚 **Full Documentation**](docs/index.md)
+  [🇮🇷 Read in Persian (فارسی) 🇮🇷](README-fa.md) | [📚 **Full Documentation**](https://selin2005.github.io/phoenix/)
 </div>
 
 ---
@@ -18,7 +18,7 @@
 
 Phoenix establishes a persistent, multiplexed HTTP/2 tunnel between a client and server. It offers advanced features like **mTLS authentication**, **One-Way TLS** (HTTPS-like), and automatic **Zombie Connection Recovery** to maintain connectivity in hostile network environments.
 
-For detailed architecture, configuration, and security analysis, please visit our **[Official Documentation](docs/index.md)**.
+For detailed architecture, configuration, and security analysis, please visit our **[Official Documentation](https://selin2005.github.io/phoenix/)**.
 
 ## ⚡ Quick Start
 
@@ -32,7 +32,7 @@ For detailed architecture, configuration, and security analysis, please visit ou
     ./phoenix-client -c client.toml
     ```
 
-> **Note:** Comprehensive setup guides for Linux, Windows, macOS, and Android are available in the [Getting Started Guide](docs/guide/getting-started.md).
+> **Note:** Comprehensive setup guides for Linux, Windows, macOS, and Android are available in the [Getting Started Guide](https://selin2005.github.io/phoenix/guide/getting-started).
 
 ## ❤️ Support & Donate
 
