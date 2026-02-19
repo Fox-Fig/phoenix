@@ -3,14 +3,14 @@ import { defineConfig } from 'vitepress'
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   base: '/phoenix/',
-  title: "Phoenix (ققنوس)",
+  title: "Phoenix",
   description: "High-performance, DPI-resistant censorship circumvention tool.",
   head: [
-    ['link', { rel: 'icon', href: '/phoenix/logo.svg' }]
+    ['link', { rel: 'icon', href: '/phoenix/logo.png' }]
   ],
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
-    logo: '/phoenix/logo.svg',
+    logo: '/phoenix/logo.png',
 
     nav: [
       { text: 'Home', link: '/' },
@@ -24,7 +24,8 @@ export default defineConfig({
         items: [
           { text: 'Getting Started', link: '/guide/getting-started' },
           { text: 'Architecture', link: '/guide/architecture' },
-          { text: 'Configuration', link: '/guide/configuration' }
+          { text: 'Configuration', link: '/guide/configuration' },
+          { text: 'Security & Encryption', link: '/guide/security' }
         ]
       }
     ],

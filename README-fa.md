@@ -1,6 +1,6 @@
 <div align="center" dir="rtl">
-  <img src="logo.svg" alt="لوگو ققنوس" width="200" height="200">
-  <h1>ققنوس (Phoenix)</h1>
+  <img src="logo.png" alt="لوگو ققنوس" width="200" height="200">
+  <h1>Phoenix</h1>
   <p>
     <img src="https://img.shields.io/badge/License-GPLv2-blue.svg" alt="License">
     <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go" alt="Go Version">
@@ -59,14 +59,14 @@ graph LR
 
 ### نصب
 
-شما می‌توانید آخرین نسخه را دانلود کنید یا سورس کد را بیلد بگیرید:
+1. **دانلود آخرین نسخه:**
+   به صفحه [Releases](https://github.com/Selin2005/phoenix/releases) بروید و فایل باینری متناسب با سیستم عامل خود (لینوکس، ویندوز، مک، اندروید) را دانلود کنید.
 
-```bash
-git clone https://github.com/Selin2005/phoenix.git
-cd phoenix
-go build -o phoenix-client cmd/client/main.go
-go build -o phoenix-server cmd/server/main.go
-```
+2. **اعطای دسترسی اجرا (لینوکس/مک):**
+   ```bash
+   chmod +x phoenix-client-linux-amd64
+   chmod +x phoenix-server-linux-amd64
+   ```
 
 ### پیکربندی
 

@@ -11,10 +11,13 @@ Welcome to the Phoenix documentation. This guide will help you install, configur
 
 ### Quick Install
 
+**Download the latest release:**  
+Go to the [Releases](https://github.com/Selin2005/phoenix/releases) page and download the binary for your operating system (Linux, Windows, macOS, Android).
+
+**Make it executable (Linux/macOS):**
 ```bash
-git clone https://github.com/Selin2005/phoenix.git
-cd phoenix
-make build
+chmod +x phoenix-client-linux-amd64
+chmod +x phoenix-server-linux-amd64
 ```
 
 ## Running the Server

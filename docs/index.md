@@ -7,7 +7,7 @@ hero:
   text: "Rise Above the Firewalls"
   tagline: High-performance, DPI-resistant censorship circumvention via h2c multiplexing.
   image:
-    src: /logo.svg
+    src: /logo.png
     alt: Phoenix Logo
   actions:
     - theme: brand

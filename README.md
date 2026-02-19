@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="logo.svg" alt="Phoenix Logo" width="200" height="200">
-  <h1>Phoenix (ققنوس)</h1>
+  <img src="logo.png" alt="Phoenix Logo" width="200" height="200">
+  <h1>Phoenix</h1>
   <p>
     <img src="https://img.shields.io/badge/License-GPLv2-blue.svg" alt="License">
     <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go" alt="Go Version">
@@ -57,14 +57,14 @@ graph LR
 
 ### Installation
 
-You can download the latest release or build from source:
+1. **Download the latest release:**
+   Go to the [Releases](https://github.com/Selin2005/phoenix/releases) page and download the binary for your operating system (Linux, Windows, macOS, Android).
 
-```bash
-git clone https://github.com/Selin2005/phoenix.git
-cd phoenix
-go build -o phoenix-client cmd/client/main.go
-go build -o phoenix-server cmd/server/main.go
-```
+2. **Make it executable (Linux/macOS):**
+   ```bash
+   chmod +x phoenix-client-linux-amd64
+   chmod +x phoenix-server-linux-amd64
+   ```
 
 ### Configuration
 
