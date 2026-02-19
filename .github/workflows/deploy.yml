@@ -7,10 +7,10 @@ on:
 
 jobs:
   build:
-    name: Build and Release
+    name: Build Binaries
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
 
     strategy:
       matrix:
@@ -63,6 +63,32 @@ jobs:
           # Create Server Zip
           zip -r phoenix-server-${{ matrix.os }}-${{ matrix.arch }}.zip phoenix-server${{ matrix.ext }} example_server.toml
 
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: assets-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*.zip
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
+          pattern: assets-*
+          merge-multiple: true
+
+      - name: Display Downloaded Files
+        run: ls -R release_assets
+
       - name: Determine Prerelease
         id: check_prerelease
         run: |
@@ -76,10 +102,7 @@ jobs:
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: |
-            dist/phoenix-client-${{ matrix.os }}-${{ matrix.arch }}.zip
-            dist/phoenix-server-${{ matrix.os }}-${{ matrix.arch }}.zip
+          files: release_assets/*.zip
           prerelease: ${{ steps.check_prerelease.outputs.is_prerelease }}
           generate_release_notes: true
