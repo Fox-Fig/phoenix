@@ -29,14 +29,14 @@
 ```mermaid
 graph LR
     subgraph Client Side
-        A[برنامه‌های کاربر<br/>(تلگرام/مرورگر)] -->|SOCKS5/HTTP| B[کلاینت ققنوس]
+        A[User Apps<br/>(Telegram/Browser)] -->|SOCKS5/HTTP| B[Phoenix Client]
     end
     
-    B -->|h2c Multiplexed Tunnel| C{اینترنت / CDN / فایروال}
-    C -->|h2c Multiplexed Tunnel| D[سرور ققنوس]
+    B -->|h2c Multiplexed Tunnel| C{Internet / CDN / Firewall}
+    C -->|h2c Multiplexed Tunnel| D[Phoenix Server]
     
     subgraph Server Side
-        D -->|TCP/UDP| E[مقصد نهایی<br/>(یوتیوب/توییتر/غیر...)]
+        D -->|TCP/UDP| E[Target Destination<br/>(YouTube/Twitter/etc.)]
     end
     
     style B fill:#f9f,stroke:#333,stroke-width:2px
