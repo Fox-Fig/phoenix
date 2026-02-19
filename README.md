@@ -3,121 +3,134 @@
   <h1>Phoenix</h1>
   <p>
     <img src="https://img.shields.io/badge/License-GPLv2-blue.svg" alt="License">
-    <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go" alt="Go Version">
-    <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen.svg" alt="PRs Welcome">
+    <img src="https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go" alt="Go Version">
+    <img src="https://github.com/Selin2005/phoenix/actions/workflows/deploy.yml/badge.svg" alt="Build Status">
+    <img src="https://img.shields.io/github/v/release/Selin2005/phoenix?include_prereleases" alt="Latest Release">
   </p>
-  <p>High-performance, DPI-resistant censorship circumvention via <strong>HTTP/2 Cleartext (h2c)</strong> multiplexing.</p>
+  <p><strong>Phoenix</strong> is a high-performance, resilient tunneling tool designed to bypass DPI and severe network censorship using <strong>HTTP/2 (h2/h2c)</strong> multiplexing.</p>
 
-  [🇮🇷 Read in Persian (فارسی) 🇮🇷](README-fa.md)
+  [🇮🇷 Read in Persian (فارسی) 🇮🇷](README-fa.md) | [📚 Full Documentation (Docs)](docs/index.md)
 </div>
 
 ---
 
-## 🚀 Introduction
+## 🚀 Features at a Glance
 
-**Phoenix** is a next-generation tunneling tool designed to bypass sophisticated Deep Packet Inspection (DPI) systems. It leverages the power of **HTTP/2 Cleartext (h2c)** to encapsualte traffic, making it incredibly difficult for firewalls to distinguish from legitimate web traffic.
-
-Unlike traditional VPNs that use distinct protocols, Phoenix masquerades as standard HTTP/2 traffic. This allows it to:
-- **Resist Reset Storms:** Maintains connections even under aggressive active probing.
-- **CDN Compatible:** Can be proxied through Cloudflare, Gcore, or other CDNs that support HTTP/2.
-- **Zero Overhead:** Designed with minimal latency and high throughput in mind.
+- **Protocol Obfuscation:** Uses standard **HTTP/2** (h2) or **h2c** (Cleartext) to blend in with normal web traffic.
+- **Advanced Security Modes:**
+  - **mTLS (Mutual TLS):** High-security mode requiring client certificates.
+  - **One-Way TLS:** HTTPS-like encrypted tunnel (Server authenticated, Client anonymous).
+  - **h2c (Cleartext):** Stealth mode for use behind CDNs or reverse proxies.
+- **Resilience:**
+  - **Zombie Connection Recovery:** Auto-detects dead connections and performs a "Hard Reset" to restore connectivity instantly.
+  - **Circuit Breaker:** Prevents "Reset Storms" during network flapping.
+- **High Performance:** Multiplexes thousands of streams over a single TCP connection, reducing latency.
+- **Cross-Platform:** Native binaries for **Linux, Windows, macOS, and Android** (amd64/arm64).
 
 ## 🛠 Architecture
+
+Phoenix establishes a persistent HTTP/2 connection. All user traffic (SOCKS5/HTTP) is encapsulated into HTTP/2 DATA frames.
 
 ```mermaid
 graph LR
     subgraph Client_Side [Client Side]
-        A["User Apps<br/>(Telegram/Browser)"] -->|SOCKS5/HTTP| B["Phoenix Client"]
+        A["User Apps<br/>(Telegram/Browser)"] -->|SOCKS5| B["Phoenix Client"]
     end
     
-    B -->|"h2c Multiplexed Tunnel"| C{"Internet / CDN / Firewall"}
-    C -->|"h2c Multiplexed Tunnel"| D["Phoenix Server"]
+    B -- "mTLS / One-Way TLS / h2c" --> C{"Internet / GFW / CDN"}
+    C -- "Encrypted Stream" --> D["Phoenix Server"]
     
     subgraph Server_Side [Server Side]
-        D -->|TCP/UDP| E["Target Destination<br/>(YouTube/Twitter/etc.)"]
+        D -->|TCP/UDP| E["Target<br/>(YouTube/Global Internet)"]
     end
     
-    style B fill:#f9f,stroke:#333,stroke-width:2px
-    style D fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#326ce5,stroke:#fff,stroke-width:2px,color:#fff
+    style D fill:#326ce5,stroke:#fff,stroke-width:2px,color:#fff
 ```
-
-## ✅ Pros & Cons
-
-### Advantages
-- **DPI Resistance:** Hides traffic inside standard HTTP/2 frames.
-- **CDN Support:** Works behind Cloudflare and other CDNs to mask the server IP.
-- **Low Latency:** Multiplexing allows multiple streams over a single TCP connection, reducing handshake overhead.
-- **Cross-Platform:** Single binary for Linux, Windows, macOS, and Android (via termux).
-
-### Limitations
-- **Requires HTTP/2:** The intermediate network path must support HTTP/2 (most modern networks do).
-- **Setup Required:** Requires a VPS or server to run the backend.
 
 ## ⚡ Getting Started
 
-### Installation
+### 1. Installation
 
-1. **Download the latest release:**
-   Go to the [Releases](https://github.com/Selin2005/phoenix/releases) page and download the binary for your operating system (Linux, Windows, macOS, Android).
+Download the latest binary from the [Releases Page](https://github.com/Selin2005/phoenix/releases).
 
-2. **Make it executable (Linux/macOS):**
-   ```bash
-   chmod +x phoenix-client-linux-amd64
-   chmod +x phoenix-server-linux-amd64
-   ```
-
-### Configuration
-
-**Client Example (`example_client.toml`):**
-```toml
-# remote_addr: The address of the Phoenix server.
-remote_addr = "127.0.0.1:8080"
-
-[[inbounds]]
-protocol = "socks5"
-local_addr = "127.0.0.1:1080"
-enable_udp = true
+**Linux/macOS:**
+```bash
+chmod +x phoenix-client-linux-amd64
+chmod +x phoenix-server-linux-amd64
 ```
 
-**Server Example (`example_server.toml`):**
+**Windows:**
+Just run `phoenix-client-windows-amd64.exe`.
+
+### 2. Key Generation (For Secure Mode)
+Generate highly secure **Ed25519** keys using the buil-in generator:
+
+```bash
+# On Server
+./phoenix-server-linux-amd64 -gen-keys
+# Output: private.key (file) and Public Key (stdout)
+
+# On Client (Only for mTLS)
+./phoenix-client-linux-amd64 -gen-keys
+# Output: client_private.key (file) and Public Key (stdout)
+```
+
+### 3. Configuration
+
+#### **Server (`config.toml`)**
 ```toml
-# listen_addr: The address to bind to.
-listen_addr = ":8080"
+listen_addr = ":443"
 
 [security]
 enable_socks5 = true
 enable_udp = true
+
+# Path to Server Private Key (generated above) for TLS
+private_key = "private.key"
+
+# List of authenticated client Public Keys (mTLS).
+# Leave empty for One-Way TLS (allow any client).
+authorized_clients = [
+  "CLIENT_PUBLIC_KEY_BASE64..."
+]
 ```
 
-### Running
+#### **Client (`client.toml`)**
+```toml
+remote_addr = "YOUR_SERVER_IP:443"
 
-Start the server on your VPS:
+# Server's Public Key (REQUIRED for TLS) to prevent MITM.
+server_public_key = "SERVER_PUBLIC_KEY_BASE64..."
+
+# Client's Private Key (Optional - Only for mTLS).
+# If commented out, One-Way TLS is used.
+# private_key = "client_private.key"
+
+[[inbounds]]
+protocol = "socks5"
+local_addr = "127.0.0.1:1080"
+```
+
+### 4. Running
+
+**Server:**
 ```bash
-./phoenix-server -c example_server.toml
+./phoenix-server -c config.toml
 ```
 
-Start the client on your local machine:
+**Client:**
 ```bash
-./phoenix-client -c example_client.toml
+./phoenix-client -c client.toml
 ```
 
-## ❤️ Support & Donate
+## 📚 Documentation
+For deeper dives into architecture and advanced configuration, read the full documentation:
 
-If you find this project useful, please consider donating to support development.
+- [Architecture & Protocol Design](docs/guide/architecture.md)
+- [Detailed Configuration Guide](docs/guide/configuration.md)
+- [Security Model & Threat analysis](docs/guide/security.md)
 
-| Currency | Address |
-| :--- | :--- |
-| **Ethereum (ETH)** | `0x0000000000000000000000000000000000000000` |
-| **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
-| **USDT (TRC20)** | `T000000000000000000000000000000000` |
-
----
-
-<div align="center">
-  Made with ❤️ at <a href="https://t.me/FoxFig">FoxFig</a><br>
-  Dedicated to all people of Iran 🇮🇷
-</div>
-
-## 📄 License
-
-This project is licensed under the [GPLv2 License](LICENSE).
+## ❤️ Support
+Maintained by **FoxFig Team**.
+Dedicated to Internet Freedom. 🕊️

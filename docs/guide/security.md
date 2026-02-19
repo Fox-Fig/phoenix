@@ -1,76 +1,56 @@
-# Security & Encryption Modes
+# Security Model & Threat Analysis
 
-Phoenix distinguishes itself by offering a spectrum of security modes, from raw performance to military-grade mutual authentication, all running over HTTP/2 Cleartext (h2c) to withstand DPI.
+Phoenix is designed to provide secure, resilient communication through restricted networks.
 
-## 1. Cleartext h2c (No Encryption)
-**Best for:** Setup behind a Trusted CDN (Cloudflare/Gcore) that handles TLS.
+## 1. Threat Model
 
-In this mode, traffic is encapsulated in HTTP/2 frames but sent over plain TCP. The "Security" comes from the fact that it looks like standard HTTP/2 traffic to a web server.
+Phoenix assumes the following environment:
+- **Client:** The user's device is trusted.
+- **Server:** The Phoenix server is managed by the user or a trusted party.
+- **Network (Path):** The intermediate network (Internet, ISP, DPI Appliance) is untrusted and actively hostile.
+  - **DPI:** Can analyze traffic patterns, payload size, and timing.
+  - **Active Probing:** Can connect to the server/client and try to enumerate services (`Reset Storm`).
+  - **MITM:** Can attempt to intercept and decrypt TLS traffic (using forced CA installation or forged certs).
 
-### Configuration
-*   **Server:** Do NOT set `private_key`.
-*   **Client:** Do NOT set `server_public_key` or `private_key`.
+## 2. Security Modes
 
----
+### A. mTLS (Mutual TLS) - **Maximum Security**
+- **Authentication:** Both Client and Server authenticate each other using **Ed25519** key pairs.
+- **Encryption:** All traffic is encrypted using standard TLS 1.3 suites (X25519, ChaCha20-Poly1305).
+- **Pinning:** The client pins the server's public key (not relying on CA system).
+- **Probing Resistance:** The server drops any connection that does not present a valid client certificate with an authorized public key.
+- **Use Case:** Private VPN, strict access control.
 
-## 2. One-Way TLS (Anonymous Client)
-**Best for:** Standard private proxy usage. Prevents MITM (Man-in-the-Middle) attacks.
+### B. One-Way TLS (Server-Side Encryption) - **Standard Security**
+- **Authentication:** Only Server authenticates (via pinned key).
+- **Encryption:** Same strong TLS 1.3 encryption.
+- **Anonymity:** Clients do not present a certificate. The server accepts any client request.
+- **Probing Resistance:** Vulnerable to active probing if the probe knows the protocol. However, the traffic content is still hidden.
+- **Use Case:** Public Proxy, sharing access with friends/family without key distribution.
 
-Similar to standard HTTPS. The Client encrypts traffic using the Server's Public Key. The Server is authenticated, but the Client is anonymous.
+### C. h2c (Cleartext) - **Stealth Mode**
+- **Authentication:** None (unless HTTP Basic Auth is configured).
+- **Encryption:** None (Cleartext).
+- **Stealth:** Relies on blending in with HTTP traffic.
+- **Use Case:** Behind a CDN (Cloudflare/Gcore) that handles TLS termination. Or inside a trusted internal network.
 
-### Setup
-1.  **Server:** Generate keys: `./phoenix-server -gen-keys`. Save the private key (e.g., `server.key`).
-2.  **Server Config:** point `private_key` to the generated file.
-3.  **Client Config:** Copy the printed **Public Key** from the server generation step and paste it into `server_public_key`.
+## 3. Active Defense Mechanisms
 
-**(No Client Private Key is required in this mode.)**
+### Circuit Breaker & Hard Reset
+To combat active network disruption (Reset Storms/Flapping):
+- Phoenix Client monitors consecutive failures.
+- If connectivity drops, it executes a **Hard Reset**, destroying the entire HTTP/2 connection pool and rebuilding it from scratch.
+- **Debounce:** Prevents rapid-fire retries that could alert DPI systems or overload the client device.
 
-### Config Snippets
+### Ed25519 Signatures
+We use **Ed25519** for all cryptographic operations (Key Generation, Singing certificates).
+- **High Performance:** Very fast verification/signing suitable for high throughput.
+- **Small Keys:** Small 32-byte public keys are easy to distribute in config files.
+- **Quantum Resistance:** No, but standard industry practice. (Post-quantum algorithms planned for v2.0).
 
-**Server (`server.toml`):**
-```toml
-[security]
-private_key = "server.key"
-# authorized_clients is empty/commented
-```
+## 4. Best Practices
 
-**Client (`client.toml`):**
-```toml
-remote_addr = "x.x.x.x:8080"
-server_public_key = "INSERT_SERVER_PUBLIC_KEY_HERE"
-# private_key is commented out
-```
-
----
-
-## 3. Mutual TLS (mTLS - High Security)
-**Best for:** High-censorship environments. Prevents active probing.
-
-In mTLS, **both** the client and server must prove their identity. If a censor tries to connect to your server (Active Probing) without a valid Client Key, the connection is instantly rejected.
-
-### Setup
-1.  **Server:** Generate keys (`./phoenix-server -gen-keys`) -> Get `Server PubKey`.
-2.  **Client:** Generate keys (`./phoenix-client -gen-keys`) -> Get `Client PubKey`.
-3.  **Exchange:**
-    *   Put `Server PubKey` into **Client's** `server_public_key`.
-    *   Put `Client PubKey` into **Server's** `authorized_clients` list.
-
-### Config Snippets
-
-**Server (`server.toml`):**
-```toml
-[security]
-private_key = "server.key"
-authorized_clients = [
-    "CLIENT_PUBLIC_KEY_BASE64_HERE"
-]
-```
-
-**Client (`client.toml`):**
-```toml
-remote_addr = "x.x.x.x:8080"
-private_key = "client.key"
-server_public_key = "SERVER_PUBLIC_KEY_BASE64_HERE"
-```
-
-> **Note:** Keys are Ed25519, providing high security with small key sizes and fast performance.
+1. **Always use mTLS if possible.** It completely blocks unauthorized access to your server.
+2. **Rotate Keys periodically.** Use `-gen-keys` to create new key pairs every few months.
+3. **Keep binaries updated.** We regularly patch vulnerabilities and improve obfuscation.
+4. **Use a CDN (Cloudflare) with h2c mode** if your IP is blocklisted. This hides your server IP behind the CDN's massive infrastructure.
