@@ -44,12 +44,12 @@ If you find this project useful, please consider donating to support development
 | **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
 | **USDT (TRC20)** | `T000000000000000000000000000000000` |
 
+## 📄 License
+This project is licensed under the [GPLv2 License](LICENSE).
+
 ---
 
 <div align="center">
   Made with ❤️ by <a href="https://t.me/FoxFig">FoxFig Team</a><br>
-  Dedicated to Internet Freedom 🕊️
+  Dedicated to all people of Iran 🇮🇷
 </div>
-
-## 📄 License
-This project is licensed under the [GPLv2 License](LICENSE).
