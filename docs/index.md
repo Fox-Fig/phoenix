@@ -24,3 +24,13 @@ features:
   - title: Resilient & Self-Healing
     details: Features "Hard Reset" and Circuit Breakers to automatically recover from network disruptions and active probing.
 ---
+
+## ❤️ Support & Donate
+
+If you find this project useful, please consider donating to support development and server costs.
+
+| Currency | Address |
+| :--- | :--- |
+| **Ethereum (ETH)** | `0x0000000000000000000000000000000000000000` |
+| **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
+| **USDT (TRC20)** | `T000000000000000000000000000000000` |
