@@ -65,9 +65,9 @@ The output is like before:
 
 Rename the private key file:
 ```bash
-mv private.key client.private.key
+mv client_private.key client.private.key
 # Or in Windows (PowerShell):
-# Rename-Item private.key client.private.key
+# Rename-Item client_private.key client.private.key
 ```
 
 ### Step 5: Configure Client (`client.toml`)

@@ -65,9 +65,9 @@ server_public_key = "YOUR_SERVER_PUBLIC_KEY..."
 
 نام فایل کلید خصوصی را تغییر دهید:
 ```bash
-mv private.key client.private.key
+mv client_private.key client.private.key
 # یا در ویندوز (PowerShell):
-# Rename-Item private.key client.private.key
+# Rename-Item client_private.key client.private.key
 ```
 
 ### مرحله ۵: تنظیم کلاینت (`client.toml`)
