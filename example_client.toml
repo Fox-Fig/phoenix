@@ -16,6 +16,25 @@ remote_addr = "127.0.0.1:8080"
 # private_key = "client.private.key"
 # server_public_key = "SERVER_PUBLIC_KEY..."
 
+# --- Connection Reliability ---
+# Number of consecutive connection failures before the client performs a hard reset.
+# Default: 3
+hard_reset_threshold = 3
+
+# Minimum time in seconds between hard resets (debounce duration) to prevent rapid loops.
+# Default: 5
+hard_reset_debounce = 5
+
+# EnablePool turns on or off the multipath connection pool system.
+# When disabled (false), the client acts natively using a single connection.
+# Default: true
+enable_pool = true
+
+# PoolSize specifies the number of independent HTTP clients (TCP connections) to multiplex over.
+# To disable the connection pool and use a single TCP connection, set this to 1.
+# Default: 5
+pool_size = 5
+
 # [[inbounds]]: Defines a list of local listeners.
 # Each inbound listener opens a local port and tunnels traffic of a specific protocol.
 
@@ -44,15 +63,3 @@ protocol = "shadowsocks"
 local_addr = "127.0.0.1:8388"
 auth = "chacha20-ietf-poly1305:my-secret-password"
 
-# --- Connection Reliability ---
-# Number of consecutive connection failures before the client performs a hard reset.
-# Default: 3
-hard_reset_threshold = 3
-
-# Minimum time in seconds between hard resets (debounce duration) to prevent rapid loops.
-# Default: 5
-hard_reset_debounce = 5
-
-# PoolSize specifies the number of independent HTTP clients (TCP connections) to multiplex over.
-# Default: 5
-pool_size = 5

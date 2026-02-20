@@ -23,18 +23,18 @@ import (
 
 // PooledClient represents a single HTTP client and its error state.
 type PooledClient struct {
-	client       *http.Client
-	failureCount uint32
-	lastReset    time.Time
-	mu           sync.RWMutex
+	client        *http.Client
+	failureCount  uint32
+	lastReset     time.Time
+	mu            sync.RWMutex
+	activeStreams atomic.Int32
 }
 
 // Client handles outgoing connections to the Server multiplexed over a Connection Pool.
 type Client struct {
-	Config    *config.ClientConfig
-	Scheme    string
-	pool      []*PooledClient
-	poolIndex atomic.Uint64
+	Config *config.ClientConfig
+	Scheme string
+	pool   []*PooledClient
 }
 
 // NewClient creates a new Phoenix client instance.
@@ -51,10 +51,14 @@ func NewClient(cfg *config.ClientConfig) *Client {
 	}
 
 	// Initialize pool
-	size := cfg.PoolSize
-	if size <= 0 {
-		size = 5
+	size := 1
+	if cfg.EnablePool {
+		size = cfg.PoolSize
+		if size <= 0 {
+			size = 5
+		}
 	}
+
 	c.pool = make([]*PooledClient, size)
 	for i := 0; i < size; i++ {
 		c.pool[i] = &PooledClient{
@@ -144,16 +148,49 @@ func (c *Client) createHTTPClient() *http.Client {
 	return &http.Client{Transport: tr}
 }
 
-// GetClient returns a PooledClient using Round-Robin.
+// GetClient returns a PooledClient using a Least-Loaded (Active Streams) algorithm.
+// PINNING ENFORCEMENT: GetClient MUST be called exactly once per incoming connection (e.g. SOCKS5 dial),
+// and the chosen client must be used for the entirety of that specific io.Copy lifecycle.
 func (c *Client) GetClient() (*PooledClient, int) {
-	idx := c.poolIndex.Add(1) % uint64(len(c.pool))
-	return c.pool[idx], int(idx)
+	var bestClient *PooledClient
+	var bestIdx int
+	var minStreams int32 = -1
+
+	// Attempt to find the least loaded healthy client
+	for i, pc := range c.pool {
+		failures := atomic.LoadUint32(&pc.failureCount)
+		if failures >= c.Config.HardResetThreshold {
+			continue // Skip dead/degraded clients according to Watchdog
+		}
+
+		active := pc.activeStreams.Load()
+		if minStreams == -1 || active < minStreams {
+			bestClient = pc
+			bestIdx = i
+			minStreams = active
+		}
+	}
+
+	// Fallback: If all clients are marked degraded (e.g. widespread network drop),
+	// we still must pick the one with the least active streams to distribute load.
+	if bestClient == nil && len(c.pool) > 0 {
+		for i, pc := range c.pool {
+			active := pc.activeStreams.Load()
+			if minStreams == -1 || active < minStreams {
+				bestClient = pc
+				bestIdx = i
+				minStreams = active
+			}
+		}
+	}
+
+	return bestClient, bestIdx
 }
 
 // Dial initiates a tunnel for a specific protocol.
 // It connects to the server and returns the stream to be used by the local listener.
 func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteCloser, error) {
-	// Select connection from pool via Round-Robin
+	// Select connection from pool via Least-Loaded
 	pc, poolIdx := c.GetClient()
 
 	pc.mu.RLock()
@@ -196,10 +233,18 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 			resp.Body.Close()
 			return nil, fmt.Errorf("server rejected connection with status: %d", resp.StatusCode)
 		}
+
+		// Dial successful, stream starts. Hook: Add(1) to the active streams for this pooled client.
+		pc.activeStreams.Add(1)
+
 		return &Stream{
 			Writer: pw,
 			Reader: resp.Body,
 			Closer: resp.Body,
+			onClose: func() {
+				// Hook: Done() / Add(-1) when the stream closes
+				pc.activeStreams.Add(-1)
+			},
 		}, nil
 
 	case err := <-errChan:
@@ -256,13 +301,20 @@ func (c *Client) resetPooledClient(pc *PooledClient, index int) {
 }
 
 // Stream wraps the pipe endpoint to implement io.ReadWriteCloser.
+// It also acts as the wrapper to enforce decrementing active_streams on closure.
 type Stream struct {
 	io.Writer
 	io.Reader
 	io.Closer
+	onClose func()
+	closed  atomic.Bool
 }
 
 func (s *Stream) Close() error {
+	// Ensure we only decrement once even if Close is called multiple times
+	if s.closed.CompareAndSwap(false, true) && s.onClose != nil {
+		s.onClose()
+	}
 	s.Closer.Close()
 	if w, ok := s.Writer.(io.Closer); ok {
 		w.Close()

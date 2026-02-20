@@ -65,6 +65,11 @@ func main() {
 
 	client := transport.NewClient(cfg)
 	log.Printf("Phoenix Client started. Connecting to %s", cfg.RemoteAddr)
+	log.Printf("Configuration Dump:")
+	log.Printf("  - Enable Pool: %v", cfg.EnablePool)
+	log.Printf("  - Pool Size: %d", cfg.PoolSize)
+	log.Printf("  - Hard Reset Threshold: %d", cfg.HardResetThreshold)
+	log.Printf("  - Hard Reset Debounce: %ds", cfg.HardResetDebounce)
 
 	var wg sync.WaitGroup
 

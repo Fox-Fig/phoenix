@@ -49,6 +49,9 @@ type ClientConfig struct {
 	// HardResetDebounce is the minimum seconds between hard resets
 	HardResetDebounce int `toml:"hard_reset_debounce"`
 
+	// EnablePool turns on or off the multipath connection pool system
+	EnablePool bool `toml:"enable_pool"`
+
 	// PoolSize specifies the number of independent HTTP clients (TCP connections) to multiplex over.
 	PoolSize int `toml:"pool_size"`
 }
@@ -65,6 +68,7 @@ func DefaultClientConfig() *ClientConfig {
 		},
 		HardResetThreshold: 3,
 		HardResetDebounce:  5,
+		EnablePool:         true,
 		PoolSize:           5,
 	}
 }
