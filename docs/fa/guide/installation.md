@@ -11,21 +11,24 @@
 
 ```bash [Linux AMD64]
 wget https://github.com/Fox-Fig/phoenix/releases/latest/download/phoenix-server-linux-amd64.zip
-unzip phoenix-server-linux-amd64.zip
+unzip phoenix-server-linux-amd64.zip -d phoenix
+cd phoenix
 cp example_server.toml server.toml
 chmod +x phoenix-server
 ```
 
 ```bash [Linux ARM64]
 wget https://github.com/Fox-Fig/phoenix/releases/latest/download/phoenix-server-linux-arm64.zip
-unzip phoenix-server-linux-arm64.zip
+unzip phoenix-server-linux-arm64.zip -d phoenix
+cd phoenix
 cp example_server.toml server.toml
 chmod +x phoenix-server
 ```
 
 ```powershell [Windows AMD64 (PowerShell)]
 Invoke-WebRequest -Uri "https://github.com/Fox-Fig/phoenix/releases/latest/download/phoenix-server-windows-amd64.zip" -OutFile "phoenix-server.zip"
-Expand-Archive -Path "phoenix-server.zip" -DestinationPath "."
+Expand-Archive -Path "phoenix-server.zip" -DestinationPath "phoenix"
+cd phoenix
 Copy-Item "example_server.toml" -Destination "server.toml"
 ```
 
@@ -75,27 +78,31 @@ nano server.toml
 
 ```powershell [Windows AMD64 (PowerShell)]
 Invoke-WebRequest -Uri "https://github.com/Fox-Fig/phoenix/releases/latest/download/phoenix-client-windows-amd64.zip" -OutFile "phoenix-client.zip"
-Expand-Archive -Path "phoenix-client.zip" -DestinationPath "."
+Expand-Archive -Path "phoenix-client.zip" -DestinationPath "phoenix"
+cd phoenix
 Copy-Item "example_client.toml" -Destination "client.toml"
 ```
 
 ```bash [Linux AMD64]
 wget https://github.com/Fox-Fig/phoenix/releases/latest/download/phoenix-client-linux-amd64.zip
-unzip phoenix-client-linux-amd64.zip
+unzip phoenix-client-linux-amd64.zip -d phoenix
+cd phoenix
 cp example_client.toml client.toml
 chmod +x phoenix-client
 ```
 
 ```bash [macOS Intel]
 wget https://github.com/Fox-Fig/phoenix/releases/latest/download/phoenix-client-darwin-amd64.zip
-unzip phoenix-client-darwin-amd64.zip
+unzip phoenix-client-darwin-amd64.zip -d phoenix
+cd phoenix
 cp example_client.toml client.toml
 chmod +x phoenix-client
 ```
 
 ```bash [macOS Silicon]
 wget https://github.com/Fox-Fig/phoenix/releases/latest/download/phoenix-client-darwin-arm64.zip
-unzip phoenix-client-darwin-arm64.zip
+unzip phoenix-client-darwin-arm64.zip -d phoenix
+cd phoenix
 cp example_client.toml client.toml
 chmod +x phoenix-client
 ```
