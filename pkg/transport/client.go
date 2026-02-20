@@ -128,7 +128,9 @@ func (c *Client) createHTTPClient() *http.Client {
 			TLSClientConfig:            tlsConfig,
 			StrictMaxConcurrentStreams: true,
 			ReadIdleTimeout:            0,
-			PingTimeout:                5 * time.Second,
+			// PingTimeout aggressively kills downloading streams in HTTP/2.
+			// We rely on our own Watchdog for connection health.
+			// PingTimeout:                5 * time.Second,
 		}
 
 	} else {
@@ -141,7 +143,8 @@ func (c *Client) createHTTPClient() *http.Client {
 			},
 			StrictMaxConcurrentStreams: true,
 			ReadIdleTimeout:            0,
-			PingTimeout:                5 * time.Second,
+			// PingTimeout aggressively kills downloading streams in HTTP/2.
+			// PingTimeout:                5 * time.Second,
 		}
 	}
 

@@ -82,7 +82,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Reader:  r.Body,
 		Writer:  w,
 		Flusher: flusher,
+		done:    make(chan struct{}),
 	}
+
+	// Start Smart Background Flusher to prevent Packet Amplification
+	// This flushes the HTTP/2 stream every 5ms, allowing TCP coalescing
+	// rather than flushing on every 1-byte write from the underlying protocols.
+	go func() {
+		ticker := time.NewTicker(5 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				flusher.Flush()
+			case <-stream.done:
+				// Final flush before closing
+				flusher.Flush()
+				return
+			case <-r.Context().Done():
+				return
+			}
+		}
+	}()
 
 	var err error
 	// If target is provided in header, we assume the handshake is already done (e.g. at client side)
@@ -124,17 +145,25 @@ type H2Stream struct {
 	io.Reader
 	io.Writer
 	http.Flusher
+	done chan struct{}
 }
 
 func (s *H2Stream) Write(p []byte) (n int, err error) {
 	n, err = s.Writer.Write(p)
-	if n > 0 {
-		s.Flusher.Flush()
-	}
+	// We no longer call s.Flusher.Flush() here!
+	// This allows the background ticker or Go's standard buffer to coalesce packets
+	// and drastically reduces CPU usage and latency.
 	return
 }
 
 func (s *H2Stream) Close() error {
+	// Signal the flusher goroutine to stop
+	select {
+	case <-s.done:
+	default:
+		close(s.done)
+	}
+
 	// We can't really "close" the response writer other than returning from the handler.
 	// But we can close the Request Body if needed, though HTTP server does that.
 	if c, ok := s.Reader.(io.Closer); ok {
