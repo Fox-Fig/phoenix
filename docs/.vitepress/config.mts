@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
 // https://vitepress.dev/reference/site-config
-export default defineConfig({
+export default withMermaid(defineConfig({
   base: '/phoenix/',
   title: "Phoenix",
   description: "High-performance, DPI-resistant censorship circumvention tool.",
@@ -33,6 +34,9 @@ export default defineConfig({
       
       /* RTL Support for Navbar */
       html[lang="fa-IR"] .VPNavBarTitle { margin-right: 0; margin-left: 12px; }
+      
+      /* Center Mermaid Diagrams */
+      .mermaid { display: flex !important; justify-content: center !important; }
     `]
   ],
 
@@ -64,16 +68,18 @@ export default defineConfig({
             text: 'Guide',
             items: [
               { text: 'Getting Started', link: '/guide/getting-started' },
-              { text: 'Architecture', link: '/guide/architecture' },
-              { text: 'Configuration', link: '/guide/configuration' },
-              { text: 'Security & Encryption', link: '/guide/security' }
+              { text: 'Installation', link: '/guide/installation' },
+              { text: 'Advanced Configuration', link: '/guide/configuration' },
+              { text: 'Troubleshooting & Logs', link: '/guide/troubleshooting' },
+              { text: 'Architecture & Security', link: '/guide/architecture' }
             ]
           }
         ],
         footer: {
           message: 'Released under the GPLv2 License.',
           copyright: 'Made with ❤️ at FoxFig. Dedicated to all people of Iran 🇮🇷'
-        }
+        },
+        outline: { level: [2, 3] }
       }
     },
     fa: {
@@ -92,10 +98,11 @@ export default defineConfig({
           {
             text: 'راهنما',
             items: [
-              { text: 'شروع کنید', link: '/fa/guide/getting-started' },
-              { text: 'معماری و پروتکل', link: '/fa/guide/architecture' },
-              { text: 'پیکربندی (Config)', link: '/fa/guide/configuration' },
-              { text: 'امنیت و رمزنگاری', link: '/fa/guide/security' }
+              { text: 'معرفی و کلیات', link: '/fa/guide/getting-started' },
+              { text: 'نصب و راه‌اندازی', link: '/fa/guide/installation' },
+              { text: 'پیکربندی پیشرفته', link: '/fa/guide/configuration' },
+              { text: 'رفع اشکال و خطاها', link: '/fa/guide/troubleshooting' },
+              { text: 'معماری و امنیت', link: '/fa/guide/architecture' }
             ]
           }
         ],
@@ -104,7 +111,7 @@ export default defineConfig({
           copyright: 'ساخته شده با ❤️ در FoxFig. تقدیم به تمام مردم ایران 🇮🇷'
         },
         docFooter: { prev: 'صفحه قبل', next: 'صفحه بعد' },
-        outline: { label: 'در این صفحه' },
+        outline: { label: 'در این صفحه', level: [2, 3] },
         darkModeSwitchLabel: 'حالت تاریک',
         sidebarMenuLabel: 'منو',
         returnToTopLabel: 'بازگشت به بالا',
@@ -112,4 +119,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

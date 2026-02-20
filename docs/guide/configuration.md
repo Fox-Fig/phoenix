@@ -1,109 +1,102 @@
-# Configuration Guide
+# Advanced Configuration
 
-Phoenix uses **TOML** (Tom's Obvious, Minimal Language) for configuration.
-Both `phoenix-server` and `phoenix-client` require a configuration file.
+In this section, we will get acquainted with classifying different security modes.
+We strongly recommend using **mTLS mode**; however, since mTLS setup steps include all One-Way TLS steps, we will first explain One-Way TLS.
+Therefore, if you intend to implement mTLS, first perform One-Way TLS steps and then follow the mTLS section.
 
-## 1. **Server Configuration** (`server.toml`)
+---
 
-This file configures the listening address, security settings, and authorized clients.
+## 1. One-Way TLS Configuration (Like HTTPS)
 
-```toml
-# ==============================
-# Phoenix Server Configuration
-# ==============================
+In this mode, the server has a private key, and the client ensures connection integrity by having the server's public key.
 
-# Listen Address:
-# The IP and Port to bind the server to.
-# ":443" binds to port 443 on ALL interfaces (0.0.0.0).
-listen_addr = ":443"
+### Step 1: Create Server Key
+Run the following command on the server (VPS):
 
-# --- Security Settings ---
-[security]
-
-# Enable SOCKS5 Protocol Handling:
-# Allow clients to initiate SOCKS5 connections.
-enable_socks5 = true
-
-# Enable UDP support:
-# Allow UDP tunneling (e.g., for Voice Calls, Gaming).
-enable_udp = true
-
-# --- Encryption (TLS) Configuration ---
-
-# Path to the Server's Private Key (PEM format).
-# Generate this using `./phoenix-server -gen-keys`.
-# If empty, the server starts in INSECURE (h2c) mode.
-private_key = "server_private.key"
-
-# List of Authorized Client Public Keys (Base64).
-# If this list is populated, ONLY clients with matching keys can connect (mTLS).
-# If this list is EMPTY or commented out, ANY client can connect (One-Way TLS).
-authorized_clients = [
-  "CLIENT_PUBLIC_KEY_1_BASE64_STRING...",
-  "CLIENT_PUBLIC_KEY_2_BASE64_STRING..."
-]
-```
-
-## 2. **Client Configuration** (`client.toml`)
-
-This file configures the connection to the server and local listeners.
-
-```toml
-# ==============================
-# Phoenix Client Configuration
-# ==============================
-
-# Remote Server Address:
-# The public IP or Domain of your Phoenix Server.
-# Example: "example.com:443" or "203.0.113.1:443"
-remote_addr = "example.com:443"
-
-# --- Secure Authentication (TLS) ---
-
-# Server's Public Key (Base64).
-# This is REQUIRED for TLS mode to verify the server's identity (Pinning).
-# Prevents Man-in-the-Middle (MITM) attacks.
-server_public_key = "SERVER_PUBLIC_KEY_BASE64..."
-
-# Client's Private Key (Optional - Only for mTLS).
-# If you are using mTLS (Mutual Authentication), provide the path to your private key.
-# If commented out, the client connects anonymously (One-Way TLS).
-# private_key = "client_private.key"
-
-# --- Inbound Listeners ---
-
-# SOCKS5 Proxy Listener
-[[inbounds]]
-protocol = "socks5"
-local_addr = "127.0.0.1:1080"
-enable_udp = true     # Enable UDP Associate
-# auth = "user:password" # Optional basic auth for SOCKS5
-
-# HTTP Proxy Listener (Future Feature)
-# [[inbounds]]
-# protocol = "http"
-# local_addr = "127.0.0.1:8080"
-```
-
-## 3. **Environment Variables**
-
-You can override some settings using environment variables, mostly for containerized deployments (Docker).
-_(Currently, only command-line arguments `-c` or `--config` are supported directly. Environment variable support is planned for future releases.)_
-
-## 4. **Key Generation**
-
-To manage keys for secure communication:
-
-**Generate Server Key:**
 ```bash
 ./phoenix-server -gen-keys
 ```
-Save the output to `server_private.key` and update `server.toml`.
-Copy the **Public Key** to your clients' `client.toml`.
 
-**Generate Client Key (mTLS):**
+The output of this command includes two items:
+1.  A file named `private.key` is created in the same folder.
+2.  A **Public Key** is printed in the terminal output. **Copy and save it.**
+
+Then, to match the default configuration file, rename the private key file:
+```bash
+mv private.key server.private.key
+```
+
+### Step 2: Configure Server (`server.toml`)
+Open `server.toml` and uncomment the `private_key` line (by removing `#`):
+
+```toml
+[security]
+# ...
+private_key = "server.private.key"
+```
+
+### Step 3: Configure Client (`client.toml`)
+On your computer, open `client.toml`. Find the `server_public_key` variable, uncomment it, and set its value to the **Server Public Key** (which you saved in Step 1):
+
+```toml
+server_public_key = "YOUR_SERVER_PUBLIC_KEY..."
+```
+
+**Congratulations!** Now One-Way TLS mode is activated and you can use the program.
+
+---
+
+## 2. mTLS Configuration (Mutual Authentication - Recommended)
+
+For maximum security (Anti-Probing), after performing the above steps (One-Way TLS), perform the following steps as well.
+
+### Step 4: Create Client Key
+Run the following command on your computer (Client side):
+
 ```bash
 ./phoenix-client -gen-keys
+# Or in Windows:
+# .\phoenix-client.exe -gen-keys
 ```
-Save the output to `client_private.key` and update `client.toml`.
-Add the **Public Key** to the server's `authorized_clients` list.
+
+The output is like before:
+1.  The `private.key` file is created.
+2.  A **Public Key** is shown to you. **Copy and save it.**
+
+Rename the private key file:
+```bash
+mv private.key client.private.key
+# Or in Windows (PowerShell):
+# Rename-Item private.key client.private.key
+```
+
+### Step 5: Configure Client (`client.toml`)
+Open `client.toml` and uncomment the `private_key` line:
+
+```toml
+# Path to client private key you just created
+private_key = "client.private.key"
+```
+
+### Step 6: Configure Server (`server.toml`)
+Return to the server and open `server.toml`.
+Uncomment the `authorized_clients` variable (list of authorized clients) and put the Client Public Key (which you got in Step 4) inside it:
+
+```toml
+[security]
+# ...
+authorized_clients = [
+  "CLIENT_PUBLIC_KEY..."
+]
+```
+
+**Finished!** Now just run the server and client. In this mode, only your client is allowed to connect to the server.
+
+::: tip Important Note on File Names
+In all the steps above, we used the `mv` command (rename) to change the names of created `private.key` files to `server.private.key` and `client.private.key` to match the default configuration files (`server.toml` and `client.toml`).
+If you do not want to change the file names, you must edit the value of the `private_key` variable in the configuration files and enter your file address/name.
+:::
+
+::: tip Return to Execution
+Now that you have enabled at least one of the security modes, you can return to the previous page (**Installation and Setup**) and by reading the **Executing the Application** section, run your service with peace of mind.
+:::

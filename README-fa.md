@@ -27,11 +27,11 @@
 1.  **دانلود:** آخرین نسخه متناسب با سیستم عامل خود را از [صفحه Releases](https://github.com/Fox-Fig/phoenix/releases) دانلود کنید.
 2.  **سرور:** روی VPS خود اجرا کنید:
     ```bash
-    ./phoenix-server -c server.toml
+    ./phoenix-server -config server.toml
     ```
 3.  **کلاینت:** روی سیستم شخصی خود اجرا کنید:
     ```bash
-    ./phoenix-client -c client.toml
+    ./phoenix-client -config client.toml
     ```
 
 > **نکته:** راهنمای گام‌به‌گام نصب و راه‌اندازی در لینوکس، ویندوز، مک و اندروید در [راهنمای شروع به کار](https://Fox-Fig.github.io/phoenix/guide/getting-started) موجود است.
@@ -42,9 +42,10 @@
 
 | ارز | آدرس کیف پول |
 | :--- | :--- |
-| **Ethereum (ETH)** | `0x0000000000000000000000000000000000000000` |
-| **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
-| **USDT (TRC20)** | `T000000000000000000000000000000000` |
+| **Ethereum (ETH)** | `0x0a6Ec68eE4d2Bda659225c2a595799a037a71249` |
+| **Bitcoin (BTC)** | `bc1qv9sn8pv2wz9gzla4ysqgfaa6arvkspsvf4rp35` |
+| **Ripple (XRP)** | `rMh2DFK2YcX8CfjvMaefrkbgtyRqLZeg13` |
+| **USDT (TRC20)** | `TWzNBYVAxFYkJUMv1SNDzqZSaVQmg46ZSL` |
 
 ## 📄 لایسنس
 این پروژه تحت [مجوز GPLv2](LICENSE) منتشر شده است.

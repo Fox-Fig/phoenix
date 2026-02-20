@@ -1,135 +1,99 @@
-# Getting Started
+# Introduction and Overview (Phoenix)
 
-This guide will walk you through setting up a Phoenix Server on a VPS and connecting to it using a Phoenix Client.
+Welcome to the Phoenix documentation.
+Here you will learn about the basic concepts, architecture, and security modes of Phoenix so you can choose the best configuration for your needs.
 
-## Prerequisites
+## What is Phoenix?
 
-1.  **A VPS (Virtual Private Server):** You need a server with a public IP address. Ubuntu 22.04 or Debian 11/12 is recommended.
-2.  **Basic Terminal Knowledge:** You should be comfortable issuing commands in a terminal/command prompt.
+Phoenix is a specialized tool for bypassing advanced filtering and Deep Packet Inspection (DPI) systems. Unlike conventional VPNs, Phoenix hides your traffic within the standard **HTTP/2** protocol.
 
-## 1. Server Setup (Linux VPS)
+### Why HTTP/2?
+HTTP/2 is the same language your browser uses to open sites like Google and Instagram. By using this protocol:
+1. Your traffic looks completely like normal web browsing traffic.
+2. It uses **Multiplexing** to send multiple requests (Telegram, YouTube, Web Browsing) simultaneously over **one** TCP connection, significantly increasing speed.
+3. **Header Compression (HPACK):** Reduces control message overhead by up to 99%.
+4. **Flow Control:** Enables fair bandwidth distribution among streams.
 
-### Step 1: Download & Install
-SSH into your VPS and run the following commands to download the latest release (replace `v1.0.0dev17` with the actual latest tag):
+---
 
-```bash
-# create directory
-mkdir -p /opt/phoenix
-cd /opt/phoenix
+## Security Modes
 
-# Download binary (Example for Linux AMD64)
-wget https://github.com/Fox-Fig/phoenix/releases/latest/download/phoenix-server-linux-amd64.zip
-unzip phoenix-server-linux-amd64.zip
-chmod +x phoenix-server-linux-amd64
-mv phoenix-server-linux-amd64 phoenix-server
-```
+::: tip Summary for Users
+In this section, security modes are explained simply and without technical complexities. If you are interested in more precise technical details, please visit the **[Architecture & Security](architecture.md)** page.
+:::
 
-### Step 2: Generate Keys
-For maximum security, generate an Ed25519 key pair:
+Phoenix supports three different security levels.
+**We strongly recommend using mTLS mode or at least One-Way TLS.**
 
-```bash
-./phoenix-server -gen-keys
-```
-*   Save the `private.key` file (it's created in the current directory).
-*   Copy the **Public Key** printed to the screen. You will need this for the Client.
+::: info Important Note on Speed
+None of the security modes below differ in speed. All three modes (even mTLS despite high security) are designed for maximum efficiency and speed, and you will feel no extra overhead.
+:::
 
-### Step 3: Configure
-Edit `server.toml` (included in the zip or create new):
+::: tip CDN Compatibility
+All modes below (mTLS, One-Way TLS, and Cleartext) are capable of being used behind CDN services (like Cloudflare, Gcore, etc.).
+:::
 
-```toml
-listen_addr = ":443"
+### 1. mTLS Mode (Mutual Authentication) - 🛡️ Recommended
+*   **Security:** Very High
+*   **Main Features:**
+    *   Completely prevents Man-in-the-Middle (MITM) attacks and eavesdropping.
+    *   Ensures that only clients defined as authorized on the server can connect.
+    *   Prevents connection of other clients who even have the server's Public Key (but not the authorized client's private key).
 
-[security]
-enable_socks5 = true
-enable_udp = true
-private_key = "private.key"
+### 2. One-Way TLS Mode (Like HTTPS) - 🔒
+*   **Security:** Medium
+*   **Main Features:**
+    *   No need to define individual clients on the server (ease of sharing config with many users).
+    *   Protects the server against other clients who only have the server address (server does not respond to invalid connections).
 
-# Add your Client's Public Key here for mTLS (Recommended)
-# If left empty, ANY client with the server key can connect (One-Way TLS).
-authorized_clients = [
-    "YOUR_CLIENT_PUBLIC_KEY_HERE"
-]
-```
+### 3. Insecure Mode (Cleartext / h2c) - ⚠️
+*   **Security:** None
+*   **Main Features:**
+    *   By using this security mode, you prove to everyone that you are a maniac who goes into the embrace of hungry cats like a machine chick in this scary world.
 
-### Step 4: Run as Service (Systemd)
-To ensure Phoenix runs in the background and restarts on reboot:
+---
 
-```bash
-# Create service file
-sudo nano /etc/systemd/system/phoenix.service
-```
+## General Architecture
 
-Paste the following:
-```ini
-[Unit]
-Description=Phoenix Tunnel Server
-After=network.target
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '16px', 'fontFamily': 'Inter', 'lineColor': '#888888', 'mainBkg': 'transparent', 'clusterBkg': 'none', 'clusterBorder': '#666'}}}%%
+flowchart TD
+    subgraph ClientSide [Client Side]
+        direction TB
+        User(👤 User)
+        Client(🚀 Phoenix Client)
+    end
 
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/phoenix
-ExecStart=/opt/phoenix/phoenix-server -c server.toml
-Restart=always
-RestartSec=3
+    subgraph Cloud [Transport Network]
+        Internet((☁️ Internet / CDN))
+    end
 
-[Install]
-WantedBy=multi-user.target
-```
+    subgraph ServerSide [Server Side]
+        direction TB
+        Server(🔥 Phoenix Server)
+        Target(🎯 Target Destination)
+    end
 
-Enable and Start:
-```bash
-sudo systemctl enable phoenix
-sudo systemctl start phoenix
-sudo systemctl status phoenix
-```
+    %% Request Path
+    User -->|SOCKS5 Request| Client
+    Client ==>|Encrypted Tunnel| Internet
+    Internet ==>|HTTP/2 Push| Server
+    Server -->|TCP/UDP| Target
 
-## 2. Client Setup
+    %% Response Path
+    Target -.->|Data Back| Server
+    Server -.->|HTTP/2 Response| Internet
+    Internet -.->|Decrypted Data| Client
+    Client -.->|SOCKS5 Reply| User
 
-### Windows
-1.  Download `phoenix-client-windows-amd64.zip` from Releases.
-2.  Extract the zip file.
-3.  Open `example_client.toml` and rename it to `client.toml`.
-4.  Edit `client.toml`:
-    ```toml
-    remote_addr = "YOUR_VPS_IP:443"
-    server_public_key = "YOUR_SERVER_PUBLIC_KEY"
+    %% Adaptive Styles
+    classDef client fill:none,stroke:#03a9f4,stroke-width:2px,color:#03a9f4;
+    classDef server fill:none,stroke:#ff9800,stroke-width:2px,color:#ff9800;
+    classDef internet fill:none,stroke:#af52bf,stroke-width:2px,color:#af52bf;
     
-    [[inbounds]]
-    protocol = "socks5"
-    local_addr = "127.0.0.1:1080"
-    enable_udp = true
-    ```
-5.  Open PowerShell or Command Prompt in the folder and run:
-    ```powershell
-    .\phoenix-client-windows-amd64.exe -c client.toml
-    ```
-6.  Configure your browser or Telegram to use SOCKS5 Proxy: `127.0.0.1:1080`.
+    class Client,User client;
+    class Server,Target server;
+    class Internet internet;
+```
 
-### Linux / macOS
-1.  Download and extract the binary.
-2.  Make executable: `chmod +x phoenix-client*`.
-3.  Generate Client Keys (for mTLS):
-    ```bash
-    ./phoenix-client -gen-keys
-    ```
-4.  Edit `client.toml` with `server_public_key` and your `private_key` (if using mTLS).
-5.  Run:
-    ```bash
-    ./phoenix-client -c client.toml
-    ```
-
-### Android (Termux)
-1.  Install **Termux** from F-Droid.
-2.  Install wget: `pkg install wget`.
-3.  Download the `linux-arm64` binary.
-4.  Follow the Linux setup steps above.
-
-## Troubleshooting
-
--   **Connection Refused:** Check your VPS Firewall (UFW/IPTables). Ensure port 443 is open.
-    ```bash
-    sudo ufw allow 443/tcp
-    ```
--   **Handshake Failure:** Check that your System Time is correct on both Client and Server.
--   **"Reset Storm" Logs:** This means the network is unstable. Phoenix is automatically resetting the connection to recover. This is normal behavior in hostile networks.
+In the next step, you will see the step-by-step **Installation and Setup**.

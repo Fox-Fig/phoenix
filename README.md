@@ -25,11 +25,11 @@ For detailed architecture, configuration, and security analysis, please visit ou
 1.  **Download:** Get the latest binary for your OS from the [Releases Page](https://github.com/Fox-Fig/phoenix/releases).
 2.  **Server:** Run on your VPS with a config file.
     ```bash
-    ./phoenix-server -c server.toml
+    ./phoenix-server -config server.toml
     ```
 3.  **Client:** Run on your local machine.
     ```bash
-    ./phoenix-client -c client.toml
+    ./phoenix-client -config client.toml
     ```
 
 > **Note:** Comprehensive setup guides for Linux, Windows, macOS, and Android are available in the [Getting Started Guide](https://Fox-Fig.github.io/phoenix/guide/getting-started).
@@ -40,9 +40,10 @@ If you find this project useful, please consider donating to support development
 
 | Currency | Address |
 | :--- | :--- |
-| **Ethereum (ETH)** | `0x0000000000000000000000000000000000000000` |
-| **Bitcoin (BTC)** | `bc1q00000000000000000000000000000000000000` |
-| **USDT (TRC20)** | `T000000000000000000000000000000000` |
+| **Ethereum (ETH)** | `0x0a6Ec68eE4d2Bda659225c2a595799a037a71249` |
+| **Bitcoin (BTC)** | `bc1qv9sn8pv2wz9gzla4ysqgfaa6arvkspsvf4rp35` |
+| **Ripple (XRP)** | `rMh2DFK2YcX8CfjvMaefrkbgtyRqLZeg13` |
+| **USDT (TRC20)** | `TWzNBYVAxFYkJUMv1SNDzqZSaVQmg46ZSL` |
 
 ## 📄 License
 This project is licensed under the [GPLv2 License](LICENSE).
