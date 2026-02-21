@@ -42,10 +42,11 @@
 
 | ارز | آدرس کیف پول |
 | :--- | :--- |
-| **Ethereum (ETH)** | `0x0a6Ec68eE4d2Bda659225c2a595799a037a71249` |
-| **Bitcoin (BTC)** | `bc1qv9sn8pv2wz9gzla4ysqgfaa6arvkspsvf4rp35` |
-| **Ripple (XRP)** | `rMh2DFK2YcX8CfjvMaefrkbgtyRqLZeg13` |
-| **USDT / TRX (TRC20)** | `TWzNBYVAxFYkJUMv1SNDzqZSaVQmg46ZSL` |
+| **Ethereum (ETH)** | `0xb59993FeCace98BF6b89a216f5ca1776028A7047` |
+| **Bitcoin (BTC)** | `bc1qx28s2sz3nvhelclpgan24ymflssql8uzcmexn3` |
+| **Ripple (XRP)** | `rHoTVZWrPhYWf4uHkHZFicrJsADp57Yq4g` |
+| **USDT / TRX (TRC20)** | `TXKnT3drzW4kb7imKrr1DVfwZWkrQWWpJo` |
+| **Toncoin (TON)** | `UQBfP7DC-SJZT7aITPIGacrm09H6b_thlSOzc_5zesnBYMBI` |
 
 ## 📄 لایسنس
 این پروژه تحت [مجوز GPLv2](LICENSE) منتشر شده است.
