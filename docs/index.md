@@ -57,8 +57,15 @@ features:
   <!-- USDT -->
   <div class="donate-card">
    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#26A17B"/><g fill="#FFF" fill-rule="nonzero"><path d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042c-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.134-6.79-.831-6.79-1.656c0-.825 2.902-1.522 6.79-1.656v.002c.25-.012.96-.042 1.971-.042c1.265 0 1.832.034 1.942.042v-.002c3.888.134 6.79.831 6.79 1.656c0 .825-2.902 1.522-6.79 1.656zM16 16.596c5.3 0 9.8 1.006 9.8 2.246c0 1.24-4.5 2.246-9.8 2.246s-9.8-1.006-9.8-2.246c0-1.24 4.5-2.246 9.8-2.246z"/><path d="M16 27.245c5.3 0 9.8-1.503 9.8-3.355v-5.05c0 1.24-4.5 2.246-9.8 2.246s-9.8-1.006-9.8-2.246v5.05c0 1.854 4.5 3.355 9.8 3.355z"/><path d="M8.13 10.45l.024-4.45h15.688l.026 4.453h-6.273l-.007 3.366c2.724.322 4.608 1.134 4.608 2.155c0 1.34-3.237 2.368-7.106 2.368c-3.87 0-7.107-1.028-7.107-2.368c0-1.02 1.884-1.833 4.608-2.155l-.008-3.366H8.13z"/></g></g></svg>
-    <h3>USDT (TRC20)</h3>
+    <h3>USDT / TRX (TRC20)</h3>
     <code>TWzNBYVAxFYkJUMv1SNDzqZSaVQmg46ZSL</code>
+  </div>
+
+  <!-- TON -->
+  <div class="donate-card">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#0098EA"/><path fill="#FFF" fill-rule="nonzero" d="M15.467 19.34L11 10s5.5 1.5 10 0l-4.467 9.34z"/></g></svg>
+    <h3>Toncoin (TON)</h3>
+    <code>UQAayXQ3iPNBvnu0tXGkFbjcKZrngTIHBpYasEITkCS8y1RH</code>
   </div>
 </div>
 

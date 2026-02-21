@@ -45,7 +45,8 @@
 | **Ethereum (ETH)** | `0x0a6Ec68eE4d2Bda659225c2a595799a037a71249` |
 | **Bitcoin (BTC)** | `bc1qv9sn8pv2wz9gzla4ysqgfaa6arvkspsvf4rp35` |
 | **Ripple (XRP)** | `rMh2DFK2YcX8CfjvMaefrkbgtyRqLZeg13` |
-| **USDT (TRC20)** | `TWzNBYVAxFYkJUMv1SNDzqZSaVQmg46ZSL` |
+| **USDT / TRX (TRC20)** | `TWzNBYVAxFYkJUMv1SNDzqZSaVQmg46ZSL` |
+| **Toncoin (TON)** | `UQAayXQ3iPNBvnu0tXGkFbjcKZrngTIHBpYasEITkCS8y1RH` |
 
 ## 📄 لایسنس
 این پروژه تحت [مجوز GPLv2](LICENSE) منتشر شده است.

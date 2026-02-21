@@ -70,6 +70,7 @@ export default withMermaid(defineConfig({
               { text: 'Getting Started', link: '/guide/getting-started' },
               { text: 'Installation', link: '/guide/installation' },
               { text: 'Advanced Configuration', link: '/guide/configuration' },
+              { text: 'Manage with Systemd', link: '/guide/systemd' },
               { text: 'Troubleshooting & Logs', link: '/guide/troubleshooting' },
               { text: 'Architecture & Security', link: '/guide/architecture' }
             ]
@@ -101,6 +102,7 @@ export default withMermaid(defineConfig({
               { text: 'معرفی و کلیات', link: '/fa/guide/getting-started' },
               { text: 'نصب و راه‌اندازی', link: '/fa/guide/installation' },
               { text: 'پیکربندی پیشرفته', link: '/fa/guide/configuration' },
+              { text: 'مدیریت با Systemd', link: '/fa/guide/systemd' },
               { text: 'رفع اشکال و خطاها', link: '/fa/guide/troubleshooting' },
               { text: 'معماری و امنیت', link: '/fa/guide/architecture' }
             ]
