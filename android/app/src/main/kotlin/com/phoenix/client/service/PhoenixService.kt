@@ -20,12 +20,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/**
- * Foreground Service that manages the lifecycle of the Phoenix Go client process.
- *
- * Start it with [ACTION_START] + the serialised [ClientConfig] extras.
- * Stop it with [ACTION_STOP].
- */
 class PhoenixService : Service() {
 
     companion object {
@@ -36,17 +30,21 @@ class PhoenixService : Service() {
         const val ACTION_START = "com.phoenix.client.START"
         const val ACTION_STOP = "com.phoenix.client.STOP"
 
-        // Intent extras carrying ClientConfig fields
+        // Config extras
         const val EXTRA_REMOTE_ADDR = "remote_addr"
         const val EXTRA_SERVER_PUBKEY = "server_pub_key"
         const val EXTRA_PRIVATE_KEY_FILE = "private_key_file"
         const val EXTRA_LOCAL_SOCKS_ADDR = "local_socks_addr"
         const val EXTRA_ENABLE_UDP = "enable_udp"
 
-        // Broadcast contract (observed by HomeViewModel)
+        // Status broadcast
         const val STATUS_ACTION = "com.phoenix.client.SERVICE_STATUS"
         const val STATUS_EXTRA = "status"
         const val ERROR_EXTRA = "error_message"
+
+        // Log broadcast — one intent per line from Go stdout
+        const val LOG_ACTION = "com.phoenix.client.LOG"
+        const val LOG_LINE_EXTRA = "log_line"
 
         fun startIntent(context: Context, config: ClientConfig): Intent =
             Intent(context, PhoenixService::class.java).apply {
@@ -93,13 +91,13 @@ class PhoenixService : Service() {
     // ── Private helpers ────────────────────────────────────────────────────────
 
     private fun launchGoProcess(config: ClientConfig) {
-        killProcess() // ensure no leftover
+        killProcess()
 
         val binary = try {
             BinaryExtractor.extract(this)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to extract binary: $e")
-            broadcastError("Binary extraction failed: ${e.message}")
+            Log.e(TAG, "Failed to locate binary: $e")
+            broadcastError("Binary not found: ${e.message}")
             stopSelf()
             return
         }
@@ -118,7 +116,7 @@ class PhoenixService : Service() {
             "-config", configFile.absolutePath,
             "-files-dir", filesDir.absolutePath,
         )
-        Log.i(TAG, "Launching: ${cmd.joinToString(" ")}")
+        broadcastLog("Starting: ${cmd.joinToString(" ")}")
 
         try {
             process = ProcessBuilder(*cmd)
@@ -127,17 +125,20 @@ class PhoenixService : Service() {
 
             broadcastStatus(ServiceStatus.CONNECTED)
 
-            // Stream logs to Logcat
+            // Stream every line from Go stdout to both Logcat and the UI log panel.
             process!!.inputStream.bufferedReader().forEachLine { line ->
                 Log.i(TAG, "[go] $line")
+                broadcastLog(line)
             }
 
             val exitCode = process!!.waitFor()
-            Log.i(TAG, "Go process exited with code $exitCode")
+            val msg = "Process exited with code $exitCode"
+            Log.i(TAG, msg)
+            broadcastLog(msg)
             broadcastStatus(ServiceStatus.DISCONNECTED)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start Go process: $e")
-            broadcastError("Process start failed: ${e.message}")
+            Log.e(TAG, "Failed to run Go process: $e")
+            broadcastError("Process error: ${e.message}")
         } finally {
             stopSelf()
         }
@@ -158,7 +159,7 @@ class PhoenixService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val openAppIntent = PendingIntent.getActivity(
+        val openIntent = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE,
@@ -167,7 +168,7 @@ class PhoenixService : Service() {
             .setContentTitle(getString(R.string.notification_title))
             .setContentText(getString(R.string.notification_text))
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentIntent(openAppIntent)
+            .setContentIntent(openIntent)
             .setOngoing(true)
             .build()
     }
@@ -182,6 +183,10 @@ class PhoenixService : Service() {
                 .putExtra(STATUS_EXTRA, ServiceStatus.ERROR.name)
                 .putExtra(ERROR_EXTRA, message),
         )
+    }
+
+    private fun broadcastLog(line: String) {
+        sendBroadcast(Intent(LOG_ACTION).putExtra(LOG_LINE_EXTRA, line))
     }
 
     private fun Intent.toClientConfig() = ClientConfig(
