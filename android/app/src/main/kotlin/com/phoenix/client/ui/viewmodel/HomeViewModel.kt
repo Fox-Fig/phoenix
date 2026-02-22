@@ -1,17 +1,14 @@
 package com.phoenix.client.ui.viewmodel
 
 import android.app.Application
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.VpnService
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.phoenix.client.domain.model.ClientConfig
 import com.phoenix.client.domain.repository.ConfigRepository
 import com.phoenix.client.service.PhoenixService
+import com.phoenix.client.service.ServiceEvents
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -60,61 +57,41 @@ class HomeViewModel @Inject constructor(
     private var uptimeJob: Job? = null
     private var timeoutJob: Job? = null
 
-    // ── Broadcast receivers ────────────────────────────────────────────────────
-
-    private val statusReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val statusName = intent.getStringExtra(PhoenixService.STATUS_EXTRA) ?: return
-            val status = runCatching {
-                PhoenixService.ServiceStatus.valueOf(statusName)
-            }.getOrNull() ?: return
-
-            timeoutJob?.cancel()
-
-            when (status) {
-                PhoenixService.ServiceStatus.CONNECTED -> {
-                    _uiState.update { it.copy(connectionStatus = ConnectionStatus.CONNECTED, errorMessage = null) }
-                    startUptimeClock()
-                }
-                PhoenixService.ServiceStatus.DISCONNECTED -> {
-                    stopUptimeClock()
-                    _uiState.update { it.copy(connectionStatus = ConnectionStatus.DISCONNECTED, errorMessage = null) }
-                }
-                PhoenixService.ServiceStatus.ERROR -> {
-                    stopUptimeClock()
-                    _uiState.update {
-                        it.copy(
-                            connectionStatus = ConnectionStatus.ERROR,
-                            errorMessage = intent.getStringExtra(PhoenixService.ERROR_EXTRA),
-                        )
+    init {
+        // Collect service status events from the in-process SharedFlow.
+        // This replaces the old BroadcastReceiver approach which was unreliable
+        // on some OEM ROMs (Samsung in particular).
+        viewModelScope.launch {
+            ServiceEvents.status.collect { event ->
+                timeoutJob?.cancel()
+                when (event) {
+                    is ServiceEvents.StatusEvent.Connected -> {
+                        _uiState.update { it.copy(connectionStatus = ConnectionStatus.CONNECTED, errorMessage = null) }
+                        startUptimeClock()
+                    }
+                    is ServiceEvents.StatusEvent.Disconnected -> {
+                        stopUptimeClock()
+                        _uiState.update { it.copy(connectionStatus = ConnectionStatus.DISCONNECTED, errorMessage = null) }
+                    }
+                    is ServiceEvents.StatusEvent.Error -> {
+                        stopUptimeClock()
+                        _uiState.update {
+                            it.copy(connectionStatus = ConnectionStatus.ERROR, errorMessage = event.message)
+                        }
                     }
                 }
             }
         }
-    }
 
-    private val logReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            val line = intent.getStringExtra(PhoenixService.LOG_LINE_EXTRA) ?: return
-            _uiState.update { state ->
-                val newLogs = (state.logs + line).takeLast(MAX_LOG_LINES)
-                state.copy(logs = newLogs)
+        // Collect log lines from the service.
+        viewModelScope.launch {
+            ServiceEvents.log.collect { line ->
+                _uiState.update { state ->
+                    val newLogs = (state.logs + line).takeLast(MAX_LOG_LINES)
+                    state.copy(logs = newLogs)
+                }
             }
         }
-    }
-
-    init {
-        val app = application
-        ContextCompat.registerReceiver(
-            app, statusReceiver,
-            IntentFilter(PhoenixService.STATUS_ACTION),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
-        ContextCompat.registerReceiver(
-            app, logReceiver,
-            IntentFilter(PhoenixService.LOG_ACTION),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
     }
 
     // ── Public actions ─────────────────────────────────────────────────────────
@@ -186,7 +163,7 @@ class HomeViewModel @Inject constructor(
             )
         }
 
-        // Safety timeout — revert if no CONNECTED/ERROR broadcast arrives within 20 s
+        // Safety timeout — revert if no CONNECTED/ERROR event arrives within 20 s
         timeoutJob?.cancel()
         timeoutJob = viewModelScope.launch {
             delay(CONNECT_TIMEOUT_MS)
@@ -223,12 +200,5 @@ class HomeViewModel @Inject constructor(
         uptimeJob?.cancel()
         uptimeJob = null
         _uiState.update { it.copy(uptimeSeconds = 0L) }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        val app = getApplication<Application>()
-        app.unregisterReceiver(statusReceiver)
-        app.unregisterReceiver(logReceiver)
     }
 }

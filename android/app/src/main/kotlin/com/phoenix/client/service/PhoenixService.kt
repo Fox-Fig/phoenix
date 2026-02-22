@@ -39,15 +39,6 @@ class PhoenixService : Service() {
         const val EXTRA_LOCAL_SOCKS_ADDR = "local_socks_addr"
         const val EXTRA_ENABLE_UDP = "enable_udp"
 
-        // Status broadcast
-        const val STATUS_ACTION = "com.phoenix.client.SERVICE_STATUS"
-        const val STATUS_EXTRA = "status"
-        const val ERROR_EXTRA = "error_message"
-
-        // Log broadcast — one intent per stdout line from the Go process
-        const val LOG_ACTION = "com.phoenix.client.LOG"
-        const val LOG_LINE_EXTRA = "log_line"
-
         fun startIntent(context: Context, config: ClientConfig): Intent =
             Intent(context, PhoenixService::class.java).apply {
                 action = ACTION_START
@@ -109,8 +100,8 @@ class PhoenixService : Service() {
         val binary = try {
             BinaryExtractor.extract(this)
         } catch (e: Exception) {
-            broadcastLog("ERROR: binary not found — ${e.message}")
-            broadcastError("Binary not found: ${e.message}")
+            ServiceEvents.emitLog("ERROR: binary not found — ${e.message}")
+            ServiceEvents.emitStatus(ServiceEvents.StatusEvent.Error("Binary not found: ${e.message}"))
             stopSelf()
             return
         }
@@ -118,23 +109,23 @@ class PhoenixService : Service() {
         val configResult = try {
             ConfigWriter.write(this, config)
         } catch (e: Exception) {
-            broadcastLog("ERROR: config write failed — ${e.message}")
-            broadcastError("Config write failed: ${e.message}")
+            ServiceEvents.emitLog("ERROR: config write failed — ${e.message}")
+            ServiceEvents.emitStatus(ServiceEvents.StatusEvent.Error("Config write failed: ${e.message}"))
             stopSelf()
             return
         }
 
         // Log the exact TOML so developers can verify the config in the UI panel
-        broadcastLog("=== client.toml ===")
-        configResult.tomlContent.lines().forEach { broadcastLog(it) }
-        broadcastLog("==================")
+        ServiceEvents.emitLog("=== client.toml ===")
+        configResult.tomlContent.lines().forEach { ServiceEvents.emitLog(it) }
+        ServiceEvents.emitLog("==================")
 
         val cmd = arrayOf(
             binary.absolutePath,
             "-config", configResult.file.absolutePath,
             "-files-dir", filesDir.absolutePath,
         )
-        broadcastLog("CMD: ${cmd.joinToString(" ")}")
+        ServiceEvents.emitLog("CMD: ${cmd.joinToString(" ")}")
         Log.i(TAG, "Launching: ${cmd.joinToString(" ")}")
 
         try {
@@ -149,37 +140,41 @@ class PhoenixService : Service() {
 
             process!!.inputStream.bufferedReader().forEachLine { line ->
                 Log.i(TAG, "[go] $line")
-                broadcastLog(line)
+                ServiceEvents.emitLog(line)
 
                 if (!listenerStarted && "Listening on" in line) {
                     listenerStarted = true
-                    broadcastStatus(ServiceStatus.CONNECTED)
+                    ServiceEvents.emitStatus(ServiceEvents.StatusEvent.Connected)
                 }
             }
 
             val exitCode = process!!.waitFor()
             val exitMsg = "Process exited (code $exitCode)"
             Log.i(TAG, exitMsg)
-            broadcastLog(exitMsg)
+            ServiceEvents.emitLog(exitMsg)
 
             if (!intentionallyStopped.get()) {
                 if (!listenerStarted) {
                     // Process died before ever becoming ready
-                    broadcastError("Process exited before listening (code $exitCode) — check logs")
+                    ServiceEvents.emitStatus(
+                        ServiceEvents.StatusEvent.Error(
+                            "Process exited before listening (code $exitCode) — check logs",
+                        ),
+                    )
                 } else {
-                    broadcastStatus(ServiceStatus.DISCONNECTED)
+                    ServiceEvents.emitStatus(ServiceEvents.StatusEvent.Disconnected)
                 }
             }
         } catch (e: InterruptedIOException) {
             // Expected when killProcess() calls process.destroy() while forEachLine is
-            // blocking. Only log it — do NOT broadcast an error to the user.
+            // blocking. Only log it — do NOT emit an error to the user.
             Log.d(TAG, "Stream closed (expected on stop): ${e.message}")
         } catch (e: Exception) {
             if (!intentionallyStopped.get()) {
                 val msg = "Process error: ${e.message}"
                 Log.e(TAG, msg)
-                broadcastLog("ERROR: $msg")
-                broadcastError(msg)
+                ServiceEvents.emitLog("ERROR: $msg")
+                ServiceEvents.emitStatus(ServiceEvents.StatusEvent.Error(msg))
             }
         } finally {
             if (!intentionallyStopped.get()) {
@@ -218,22 +213,6 @@ class PhoenixService : Service() {
             .build()
     }
 
-    private fun broadcastStatus(status: ServiceStatus) {
-        sendBroadcast(Intent(STATUS_ACTION).putExtra(STATUS_EXTRA, status.name))
-    }
-
-    private fun broadcastError(message: String) {
-        sendBroadcast(
-            Intent(STATUS_ACTION)
-                .putExtra(STATUS_EXTRA, ServiceStatus.ERROR.name)
-                .putExtra(ERROR_EXTRA, message),
-        )
-    }
-
-    private fun broadcastLog(line: String) {
-        sendBroadcast(Intent(LOG_ACTION).putExtra(LOG_LINE_EXTRA, line))
-    }
-
     private fun Intent.toClientConfig() = ClientConfig(
         remoteAddr = getStringExtra(EXTRA_REMOTE_ADDR) ?: "",
         serverPubKey = getStringExtra(EXTRA_SERVER_PUBKEY) ?: "",
@@ -241,6 +220,4 @@ class PhoenixService : Service() {
         localSocksAddr = getStringExtra(EXTRA_LOCAL_SOCKS_ADDR) ?: "127.0.0.1:10080",
         enableUdp = getBooleanExtra(EXTRA_ENABLE_UDP, false),
     )
-
-    enum class ServiceStatus { CONNECTED, DISCONNECTED, ERROR }
 }
