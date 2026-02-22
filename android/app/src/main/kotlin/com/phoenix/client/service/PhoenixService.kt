@@ -43,6 +43,11 @@ class PhoenixService : Service() {
         const val EXTRA_LOCAL_SOCKS_ADDR = "local_socks_addr"
         const val EXTRA_ENABLE_UDP = "enable_udp"
 
+        // Broadcast contract (observed by HomeViewModel)
+        const val STATUS_ACTION = "com.phoenix.client.SERVICE_STATUS"
+        const val STATUS_EXTRA = "status"
+        const val ERROR_EXTRA = "error_message"
+
         fun startIntent(context: Context, config: ClientConfig): Intent =
             Intent(context, PhoenixService::class.java).apply {
                 action = ACTION_START
@@ -187,13 +192,5 @@ class PhoenixService : Service() {
         enableUdp = getBooleanExtra(EXTRA_ENABLE_UDP, false),
     )
 
-    // ── Broadcast contract (observed by HomeViewModel) ─────────────────────────
-
     enum class ServiceStatus { CONNECTED, DISCONNECTED, ERROR }
-
-    companion object StatusContract {
-        const val STATUS_ACTION = "com.phoenix.client.SERVICE_STATUS"
-        const val STATUS_EXTRA = "status"
-        const val ERROR_EXTRA = "error_message"
-    }
 }
