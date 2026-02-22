@@ -24,6 +24,7 @@ class ConfigDataStore @Inject constructor(
         val REMOTE_ADDR = stringPreferencesKey("remote_addr")
         val SERVER_PUB_KEY = stringPreferencesKey("server_pub_key")
         val PRIVATE_KEY_FILE = stringPreferencesKey("private_key_file")
+        val CLIENT_PUBLIC_KEY = stringPreferencesKey("client_public_key")
         val LOCAL_SOCKS_ADDR = stringPreferencesKey("local_socks_addr")
         val ENABLE_UDP = booleanPreferencesKey("enable_udp")
     }
@@ -33,6 +34,7 @@ class ConfigDataStore @Inject constructor(
             remoteAddr = prefs[Keys.REMOTE_ADDR] ?: "",
             serverPubKey = prefs[Keys.SERVER_PUB_KEY] ?: "",
             privateKeyFile = prefs[Keys.PRIVATE_KEY_FILE] ?: "",
+            clientPublicKey = prefs[Keys.CLIENT_PUBLIC_KEY] ?: "",
             localSocksAddr = prefs[Keys.LOCAL_SOCKS_ADDR] ?: "127.0.0.1:10080",
             enableUdp = prefs[Keys.ENABLE_UDP] ?: false,
         )
@@ -43,6 +45,7 @@ class ConfigDataStore @Inject constructor(
             prefs[Keys.REMOTE_ADDR] = config.remoteAddr
             prefs[Keys.SERVER_PUB_KEY] = config.serverPubKey
             prefs[Keys.PRIVATE_KEY_FILE] = config.privateKeyFile
+            prefs[Keys.CLIENT_PUBLIC_KEY] = config.clientPublicKey
             prefs[Keys.LOCAL_SOCKS_ADDR] = config.localSocksAddr
             prefs[Keys.ENABLE_UDP] = config.enableUdp
         }

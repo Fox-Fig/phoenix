@@ -56,8 +56,7 @@ class ConfigViewModel @Inject constructor(
      * Runs the Go binary with `-gen-keys`, writes `client.private.key` to filesDir,
      * and exposes the public key via [ConfigUiState.generatedPublicKey].
      *
-     * On success the private key file field is auto-saved in DataStore so the user
-     * doesn't have to type it manually.
+     * On success, both the private key filename and public key are auto-saved to DataStore.
      */
     fun generateKeys() {
         if (_uiState.value.isGeneratingKeys) return
@@ -67,10 +66,13 @@ class ConfigViewModel @Inject constructor(
             runCatching {
                 KeyManager.generateKeys(getApplication())
             }.onSuccess { pair ->
-                // Auto-save the private key file name so the form field is pre-filled.
                 val currentConfig = config.value
-                configRepository.saveConfig(currentConfig.copy(privateKeyFile = pair.privateKeyFile))
-
+                configRepository.saveConfig(
+                    currentConfig.copy(
+                        privateKeyFile = pair.privateKeyFile,
+                        clientPublicKey = pair.publicKey,
+                    ),
+                )
                 _uiState.update {
                     it.copy(
                         isGeneratingKeys = false,
@@ -91,6 +93,7 @@ class ConfigViewModel @Inject constructor(
     /**
      * Copies the file at [uri] (content:// URI from the file picker) into the app's
      * private filesDir as `client.private.key` and auto-saves the filename to DataStore.
+     * clientPublicKey is cleared because it cannot be derived from an imported file.
      */
     fun onKeyFilePicked(uri: Uri) {
         viewModelScope.launch {
@@ -102,7 +105,12 @@ class ConfigViewModel @Inject constructor(
                         destFile.outputStream().use { input.copyTo(it) }
                     } ?: throw IllegalStateException("Cannot open selected file")
                     val currentConfig = config.value
-                    configRepository.saveConfig(currentConfig.copy(privateKeyFile = "client.private.key"))
+                    configRepository.saveConfig(
+                        currentConfig.copy(
+                            privateKeyFile = "client.private.key",
+                            clientPublicKey = "",
+                        ),
+                    )
                 }
             }.onFailure { e ->
                 _uiState.update { it.copy(keyGenError = "Failed to import key: ${e.message}") }

@@ -18,10 +18,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -49,6 +55,9 @@ import com.phoenix.client.domain.model.ClientConfig
 import com.phoenix.client.ui.theme.PhoenixOrange
 import com.phoenix.client.ui.viewmodel.ConfigViewModel
 
+/** Tracks which key action is waiting for overwrite confirmation. */
+private enum class PendingKeyAction { GENERATE, PICK_FILE }
+
 @Composable
 fun ConfigScreen(viewModel: ConfigViewModel = hiltViewModel()) {
     val savedConfig by viewModel.config.collectAsState()
@@ -70,6 +79,20 @@ fun ConfigScreen(viewModel: ConfigViewModel = hiltViewModel()) {
         mutableStateOf(savedConfig.privateKeyFile)
     }
 
+    // Client public key visibility toggle
+    var publicKeyVisible by remember { mutableStateOf(false) }
+
+    // Overwrite confirmation dialog state
+    var showOverwriteConfirm by remember { mutableStateOf(false) }
+    var pendingKeyAction by remember { mutableStateOf<PendingKeyAction?>(null) }
+
+    // File picker — lets user select an existing Ed25519 private key from device storage
+    val keyFilePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri?.let { viewModel.onKeyFilePicked(it) }
+    }
+
     // Sync mTLS state when DataStore auto-saves (e.g., after key generation or file import)
     LaunchedEffect(savedConfig.privateKeyFile) {
         privateKeyFile = savedConfig.privateKeyFile
@@ -83,11 +106,49 @@ fun ConfigScreen(viewModel: ConfigViewModel = hiltViewModel()) {
         }
     }
 
-    // File picker — lets user select an existing Ed25519 private key from device storage
-    val keyFilePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        uri?.let { viewModel.onKeyFilePicked(it) }
+    // Overwrite confirmation dialog
+    if (showOverwriteConfirm) {
+        AlertDialog(
+            onDismissRequest = {
+                showOverwriteConfirm = false
+                pendingKeyAction = null
+            },
+            title = { Text("Replace existing key?") },
+            text = {
+                Text(
+                    "A client private key already exists. " +
+                        if (pendingKeyAction == PendingKeyAction.GENERATE)
+                            "Generating a new key will overwrite it and you will need to update the server's authorized_clients list with the new public key."
+                        else
+                            "Importing a new file will replace the current key. Make sure the server's authorized_clients contains the matching public key.",
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showOverwriteConfirm = false
+                        when (pendingKeyAction) {
+                            PendingKeyAction.GENERATE -> viewModel.generateKeys()
+                            PendingKeyAction.PICK_FILE -> keyFilePicker.launch(arrayOf("*/*"))
+                            null -> {}
+                        }
+                        pendingKeyAction = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PhoenixOrange),
+                ) {
+                    Text(
+                        text = if (pendingKeyAction == PendingKeyAction.GENERATE) "Generate" else "Choose File",
+                        color = Color.Black,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showOverwriteConfirm = false
+                    pendingKeyAction = null
+                }) { Text("Cancel") }
+            },
+        )
     }
 
     // Public key dialog — shown after successful key generation
@@ -185,6 +246,7 @@ fun ConfigScreen(viewModel: ConfigViewModel = hiltViewModel()) {
         if (useMtls) {
             Spacer(Modifier.height(12.dp))
 
+            // ── Private key path display ────────────────────────────────────
             val keyPath = if (privateKeyFile.isNotBlank())
                 "${context.filesDir.absolutePath}/$privateKeyFile"
             else
@@ -215,12 +277,20 @@ fun ConfigScreen(viewModel: ConfigViewModel = hiltViewModel()) {
 
             Spacer(Modifier.height(8.dp))
 
+            // ── Generate / Choose File buttons ──────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 OutlinedButton(
-                    onClick = viewModel::generateKeys,
+                    onClick = {
+                        if (privateKeyFile.isNotBlank()) {
+                            pendingKeyAction = PendingKeyAction.GENERATE
+                            showOverwriteConfirm = true
+                        } else {
+                            viewModel.generateKeys()
+                        }
+                    },
                     enabled = !uiState.isGeneratingKeys,
                     modifier = Modifier.weight(1f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, PhoenixOrange),
@@ -237,7 +307,14 @@ fun ConfigScreen(viewModel: ConfigViewModel = hiltViewModel()) {
                 }
 
                 OutlinedButton(
-                    onClick = { keyFilePicker.launch(arrayOf("*/*")) },
+                    onClick = {
+                        if (privateKeyFile.isNotBlank()) {
+                            pendingKeyAction = PendingKeyAction.PICK_FILE
+                            showOverwriteConfirm = true
+                        } else {
+                            keyFilePicker.launch(arrayOf("*/*"))
+                        }
+                    },
                     enabled = !uiState.isGeneratingKeys,
                     modifier = Modifier.weight(1f),
                 ) {
@@ -249,6 +326,81 @@ fun ConfigScreen(viewModel: ConfigViewModel = hiltViewModel()) {
                 "Your client Ed25519 private key. Generate a new one or import an existing PEM file. " +
                     "After generating, copy the public key shown in the dialog to the server's authorized_clients list."
             )
+
+            Spacer(Modifier.height(12.dp))
+
+            // ── Client public key display (hidden until user taps eye) ───────
+            val clientPubKey = savedConfig.clientPublicKey
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            "Client Public Key",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        )
+                        Row {
+                            // Copy button — only when key is available
+                            if (clientPubKey.isNotBlank()) {
+                                IconButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("Phoenix Client Public Key", clientPubKey))
+                                    },
+                                    modifier = Modifier.size(32.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.ContentCopy,
+                                        contentDescription = "Copy public key",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                            // Eye toggle
+                            IconButton(
+                                onClick = { publicKeyVisible = !publicKeyVisible },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    imageVector = if (publicKeyVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                    contentDescription = if (publicKeyVisible) "Hide public key" else "Show public key",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    when {
+                        clientPubKey.isBlank() -> Text(
+                            "Not available — generate a new key pair to see it here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                        publicKeyVisible -> SelectionContainer {
+                            Text(
+                                text = clientPubKey,
+                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                                color = PhoenixOrange,
+                            )
+                        }
+                        else -> Text(
+                            text = "•".repeat(44),
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    }
+                }
+            }
         }
 
         Spacer(Modifier.height(24.dp))
@@ -292,6 +444,7 @@ fun ConfigScreen(viewModel: ConfigViewModel = hiltViewModel()) {
                         remoteAddr = remoteAddr.trim(),
                         serverPubKey = serverPubKey.trim(),
                         privateKeyFile = if (useMtls) privateKeyFile.trim() else "",
+                        clientPublicKey = if (useMtls) savedConfig.clientPublicKey else "",
                         localSocksAddr = localSocksAddr.trim(),
                         enableUdp = enableUdp,
                     ),
