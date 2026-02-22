@@ -1,12 +1,14 @@
 package com.phoenix.client.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.phoenix.client.domain.model.ClientConfig
 import com.phoenix.client.domain.repository.ConfigRepository
 import com.phoenix.client.util.KeyManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import javax.inject.Inject
 
 data class ConfigUiState(
@@ -80,6 +84,28 @@ class ConfigViewModel @Inject constructor(
                         keyGenError = e.message ?: "Unknown error",
                     )
                 }
+            }
+        }
+    }
+
+    /**
+     * Copies the file at [uri] (content:// URI from the file picker) into the app's
+     * private filesDir as `client.private.key` and auto-saves the filename to DataStore.
+     */
+    fun onKeyFilePicked(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val ctx = getApplication<Application>()
+                    val destFile = File(ctx.filesDir, "client.private.key")
+                    ctx.contentResolver.openInputStream(uri)?.use { input ->
+                        destFile.outputStream().use { input.copyTo(it) }
+                    } ?: throw IllegalStateException("Cannot open selected file")
+                    val currentConfig = config.value
+                    configRepository.saveConfig(currentConfig.copy(privateKeyFile = "client.private.key"))
+                }
+            }.onFailure { e ->
+                _uiState.update { it.copy(keyGenError = "Failed to import key: ${e.message}") }
             }
         }
     }
