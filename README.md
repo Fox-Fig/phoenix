@@ -9,7 +9,7 @@
   </p>
   <p><strong>Phoenix</strong> is a high-performance, resilient tunneling tool designed to bypass DPI and severe network censorship using <strong>HTTP/2 (h2/h2c)</strong> multiplexing.</p>
 
-  [🇮🇷 Read in Persian (فارسی) 🇮🇷](README-fa.md) | [📚 **Full Documentation**](https://Fox-Fig.github.io/phoenix/)
+  [🇮🇷 Read in Persian (فارسی) 🇮🇷](README-fa.md) | [📚 **Full Documentation**](https://Fox-Fig.github.io/phoenix/) | [📱 **Android Client**](android/README.md)
 </div>
 
 ---
