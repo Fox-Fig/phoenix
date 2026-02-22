@@ -1,5 +1,5 @@
 
-.PHONY: all fmt test build clean speedtest
+.PHONY: all fmt test build clean speedtest android-client
 
 all: fmt test build
 
@@ -17,6 +17,10 @@ build:
 
 speedtest: build
 	./bin/speedtest
+
+android-client:
+	mkdir -p android/app/src/main/assets
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o android/app/src/main/assets/phoenix-client ./cmd/android-client/
 
 clean:
 	rm -rf bin

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Allows cleartext HTTP/2 (h2c) traffic to localhost for the embedded SOCKS5 proxy.
+    In h2c mode (CDN deployment), the remote server address is also permitted cleartext.
+    For mTLS / one-way-TLS modes this config is irrelevant — TLS is handled by Go.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Local SOCKS5 listener -->
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

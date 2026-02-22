@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Phoenix</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_error">Error</string>
+    <string name="notification_channel_name">Phoenix Proxy</string>
+    <string name="notification_title">Phoenix is running</string>
+    <string name="notification_text">SOCKS5 proxy active on 127.0.0.1:10080</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_config">Configuration</string>
+    <string name="config_server_address">Server Address</string>
+    <string name="config_server_address_hint">host:port</string>
+    <string name="config_server_pubkey">Server Public Key</string>
+    <string name="config_server_pubkey_hint">Base64-encoded Ed25519 public key</string>
+    <string name="config_private_key_path">Private Key File</string>
+    <string name="config_private_key_hint">Path inside app files dir</string>
+    <string name="config_enable_udp">Enable UDP (SOCKS5)</string>
+    <string name="config_save">Save</string>
+    <string name="config_gen_keys">Generate Keys</string>
+    <string name="config_saved">Configuration saved</string>
+    <string name="socks5_info">SOCKS5 proxy: 127.0.0.1:10080</string>
+</resources>

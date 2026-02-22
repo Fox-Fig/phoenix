@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme. Compose handles the actual theming; this is the window theme. -->
+    <style name="Theme.Phoenix" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
