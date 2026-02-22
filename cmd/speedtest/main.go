@@ -7,180 +7,199 @@ import (
 	"net"
 	"os"
 	"phoenix/pkg/config"
+	"phoenix/pkg/crypto"
 	"phoenix/pkg/protocol"
 	"phoenix/pkg/transport"
 	"time"
 )
 
 func main() {
-	// 1. Setup Server
-	serverPort := "127.0.0.1:0"
-	l, err := net.Listen("tcp", serverPort)
-	if err != nil {
-		log.Fatal(err)
-	}
-	serverAddr := l.Addr().String()
-	l.Close() // Close to allow server to listen
+	// Start shared Echo, Sink, and Source servers
+	echoAddr := startEchoServer()
+	sinkAddr := startSinkServer()
+	sourceAddr := startSourceServer(100 * 1024 * 1024) // 100MB
 
-	serverCfg := config.DefaultServerConfig()
-	serverCfg.ListenAddr = serverAddr
-	serverCfg.Security.EnableSOCKS5 = true
-	serverCfg.Security.EnableSSH = true
+	time.Sleep(500 * time.Millisecond)
 
+	// ========================================
+	// Phase 1: Direct (No Token, h2c)
+	// ========================================
+	fmt.Println("\n====================================")
+	fmt.Println("  PHASE 1: Direct (h2c, No Token)")
+	fmt.Println("====================================")
+
+	serverAddr1 := findFreeAddr()
+	serverCfg1 := config.DefaultServerConfig()
+	serverCfg1.ListenAddr = serverAddr1
+	serverCfg1.Security.EnableSOCKS5 = true
+	serverCfg1.Security.EnableSSH = true
+
+	clientCfg1 := config.DefaultClientConfig()
+	clientCfg1.RemoteAddr = serverAddr1
+
+	runBenchmark("Direct", serverCfg1, clientCfg1, echoAddr, sinkAddr, sourceAddr)
+
+	// ========================================
+	// Phase 2: Token Auth (h2c + Token)
+	// ========================================
+	fmt.Println("\n====================================")
+	fmt.Println("  PHASE 2: Token Auth (h2c)")
+	fmt.Println("====================================")
+
+	token, _ := crypto.GenerateToken()
+	serverAddr2 := findFreeAddr()
+
+	serverCfg2 := config.DefaultServerConfig()
+	serverCfg2.ListenAddr = serverAddr2
+	serverCfg2.Security.EnableSOCKS5 = true
+	serverCfg2.Security.EnableSSH = true
+	serverCfg2.Security.AuthToken = token
+
+	clientCfg2 := config.DefaultClientConfig()
+	clientCfg2.RemoteAddr = serverAddr2
+	clientCfg2.AuthToken = token
+
+	runBenchmark("Token Auth", serverCfg2, clientCfg2, echoAddr, sinkAddr, sourceAddr)
+
+	fmt.Println("\n====================================")
+	fmt.Println("  ALL BENCHMARKS COMPLETE ✓")
+	fmt.Println("====================================")
+
+	os.Exit(0)
+}
+
+func runBenchmark(name string, serverCfg *config.ServerConfig, clientCfg *config.ClientConfig, echoAddr, sinkAddr, sourceAddr string) {
+	// Start server
 	go func() {
 		if err := transport.StartServer(serverCfg); err != nil {
-			log.Printf("Server error: %v", err)
+			log.Printf("[%s] Server error: %v", name, err)
 		}
 	}()
-
-	// Wait for server to start
 	time.Sleep(1 * time.Second)
 
-	// 2. Setup Client
-	clientCfg := config.DefaultClientConfig()
-	clientCfg.RemoteAddr = serverAddr
-
+	// Create client
 	client := transport.NewClient(clientCfg)
-
-	// 3. Test Upload Speed (Direct Tunnel)
-	fmt.Println("Starting Upload Speed Test (Client -> Server)...")
-	start := time.Now()
 	dataSize := 100 * 1024 * 1024 // 100MB
-
-	// We need a way to measure without reading from disk.
-	// We dial an SSH/Echo endpoint that consumes data?
-	// Our server implementation copies input to output if unknown or just consumes?
-	// If protocol is SSH and target is empty -> it copies back (Echo).
-	// If we send 100MB to Echo and read 100MB back, that's Download + Upload?
-	//
-	// Better: We implement a special "benchmark" protocol or use existing behavior.
-	// If we use "ssh" with target "", it echoes.
-	// Upload: Write 100MB, discard reads.
-	// Download: Read 100MB (trigger echo), discard writes? No, Echo requires input.
-
-	// Let's rely on standard SSH tunnel to a local Echo server.
-
-	// Start a local Echo Server (Target)
-	echoLn, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		log.Fatal(err)
-	}
-	echoAddr := echoLn.Addr().String()
-	go func() {
-		for {
-			c, err := echoLn.Accept()
-			if err != nil {
-				return
-			}
-			go io.Copy(c, c) // Echo
-		}
-	}()
-
-	// Dial via Client
-	stream, err := client.Dial(protocol.ProtocolSSH, echoAddr)
-	if err != nil {
-		log.Fatalf("Dial failed: %v", err)
-	}
-
-	// Generate data
 	chunk := make([]byte, 32*1024)
+
+	// --- Upload Test (Client -> Sink via Server) ---
+	fmt.Printf("[%s] Upload Speed Test (100MB)...\n", name)
+	start := time.Now()
+	upStream, err := client.Dial(protocol.ProtocolSSH, sinkAddr)
+	if err != nil {
+		log.Fatalf("[%s] Upload Dial failed: %v", name, err)
+	}
 	totalWritten := 0
-
-	go func() {
-		// Read/Discard response to prevent blocking
-		io.Copy(io.Discard, stream)
-	}()
-
 	for totalWritten < dataSize {
-		n, err := stream.Write(chunk)
+		n, err := upStream.Write(chunk)
 		if err != nil {
-			log.Fatalf("Write failed: %v", err)
+			log.Fatalf("[%s] Upload Write failed: %v", name, err)
 		}
-		totalWritten += n
-	}
-	duration := time.Since(start)
-	mbps := float64(dataSize) / 1024 / 1024 / duration.Seconds()
-	fmt.Printf("Upload Speed: %.2f MB/s\n", mbps)
-
-	if mbps < 1.0 {
-		fmt.Println("WARNING: Speed < 1MB/s. Consider increasing buffer sizes in transport/server.go handles.")
-	}
-
-	// 4. Test Download Speed (Server -> Client)
-	// We use the same Echo connection we just flooded? No, we closed it implicitly/explicitly?
-	stream.Close()
-
-	// New connection for Download
-	// We send commands to Echo server to "Push Data"?
-	// Standard Echo server only echoes. So we must Upload X to Download X.
-	// So Upload speed is entangled with Download speed if we use Echo.
-
-	// Alternative: Only measure Round Trip for simplicity or combined throughput.
-	// The prompt asks for "Upload Speed" AND "Download Speed".
-	// To separate them, we need a Sink and a Source.
-	//
-	// I'll create a Sink Server (discards input) and Source Server (generates garbage).
-
-	// Sink Server
-	sinkLn, _ := net.Listen("tcp", "127.0.0.1:0")
-	sinkAddr := sinkLn.Addr().String()
-	go func() {
-		for {
-			c, _ := sinkLn.Accept()
-			io.Copy(io.Discard, c)
-		}
-	}()
-
-	// Source Server
-	sourceLn, _ := net.Listen("tcp", "127.0.0.1:0")
-	sourceAddr := sourceLn.Addr().String()
-	go func() {
-		for {
-			c, _ := sourceLn.Accept()
-			// Generate 100MB
-			data := make([]byte, 32*1024)
-			limit := 100 * 1024 * 1024
-			written := 0
-			for written < limit {
-				n, _ := c.Write(data)
-				written += n
-			}
-			c.Close()
-		}
-	}()
-
-	// Measure Upload (Client -> Sink via Server)
-	start = time.Now()
-	upStream, _ := client.Dial(protocol.ProtocolSSH, sinkAddr)
-	totalWritten = 0
-	for totalWritten < dataSize {
-		n, _ := upStream.Write(chunk)
 		totalWritten += n
 	}
 	upDuration := time.Since(start)
-	upMbps := float64(dataSize) / 1024 / 1024 / upDuration.Seconds()
-	fmt.Printf("Pure Upload Speed: %.2f MB/s\n", upMbps)
+	upMBs := float64(dataSize) / 1024 / 1024 / upDuration.Seconds()
+	fmt.Printf("[%s] Upload Speed:   %.2f MB/s\n", name, upMBs)
 	upStream.Close()
 
-	// Measure Download (Client <- Source via Server)
+	// --- Download Test (Client <- Source via Server) ---
+	fmt.Printf("[%s] Download Speed Test (100MB)...\n", name)
 	start = time.Now()
-	downStream, _ := client.Dial(protocol.ProtocolSSH, sourceAddr)
-	// Trigger source (it starts on accept) - actually we need to read.
-	// The dial connects, accept happens, source starts writing.
+	downStream, err := client.Dial(protocol.ProtocolSSH, sourceAddr)
+	if err != nil {
+		log.Fatalf("[%s] Download Dial failed: %v", name, err)
+	}
 	received, _ := io.Copy(io.Discard, downStream)
 	downDuration := time.Since(start)
-	downMbps := float64(received) / 1024 / 1024 / downDuration.Seconds()
-	fmt.Printf("Pure Download Speed: %.2f MB/s\n", downMbps)
+	downMBs := float64(received) / 1024 / 1024 / downDuration.Seconds()
+	fmt.Printf("[%s] Download Speed: %.2f MB/s\n", name, downMBs)
 
-	// Latency
+	// --- Latency Test ---
 	start = time.Now()
-	pingStream, _ := client.Dial(protocol.ProtocolSSH, echoAddr)
+	pingStream, err := client.Dial(protocol.ProtocolSSH, echoAddr)
+	if err != nil {
+		log.Fatalf("[%s] Latency Dial failed: %v", name, err)
+	}
 	pingStream.Write([]byte("ping"))
 	buf := make([]byte, 4)
 	pingStream.Read(buf)
 	latency := time.Since(start)
-	fmt.Printf("Latency (RTT): %v\n", latency)
+	fmt.Printf("[%s] Latency (RTT):  %v\n", name, latency)
 	pingStream.Close()
+}
 
-	os.Exit(0)
+// ========================================
+// Helper Servers
+// ========================================
+
+func startEchoServer() string {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Fatal(err)
+	}
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go io.Copy(c, c)
+		}
+	}()
+	return ln.Addr().String()
+}
+
+func startSinkServer() string {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Fatal(err)
+	}
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go io.Copy(io.Discard, c)
+		}
+	}()
+	return ln.Addr().String()
+}
+
+func startSourceServer(limit int) string {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Fatal(err)
+	}
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func(conn net.Conn) {
+				defer conn.Close()
+				data := make([]byte, 32*1024)
+				written := 0
+				for written < limit {
+					n, err := conn.Write(data)
+					if err != nil {
+						return
+					}
+					written += n
+				}
+			}(c)
+		}
+	}()
+	return ln.Addr().String()
+}
+
+func findFreeAddr() string {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Fatal(err)
+	}
+	addr := l.Addr().String()
+	l.Close()
+	return addr
 }

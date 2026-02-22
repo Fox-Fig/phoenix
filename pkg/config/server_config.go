@@ -3,6 +3,11 @@ package config
 // ServerSecurity defines the security configuration for the server.
 // It controls which protocols are allowed to be tunneled.
 type ServerSecurity struct {
+	// AuthToken is a shared secret for application-level authentication.
+	// If set, clients must provide this exact token to connect.
+	// Works with all TLS modes (h2c, system, mTLS).
+	AuthToken string `toml:"auth_token"`
+
 	// EnableSOCKS5 enables or disables the SOCKS5 proxy protocol (TCP).
 	EnableSOCKS5 bool `toml:"enable_socks5"`
 

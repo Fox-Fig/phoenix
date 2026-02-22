@@ -8,6 +8,11 @@ listen_addr = ":8080"
 # [security]: This section defines which tunneling protocols are permitted
 # and handles authentication via mTLS keys.
 [security]
+# auth_token: Shared secret for client authentication.
+# If set, only clients with this exact token can connect.
+# Works with all TLS modes (h2c, system, mTLS).
+# auth_token = "your-secret-token-here"
+
 # enable_socks5: Allow clients to tunnel SOCKS5 traffic.
 enable_socks5 = true
 

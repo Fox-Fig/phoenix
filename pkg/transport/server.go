@@ -2,6 +2,7 @@ package transport
 
 import (
 	"crypto/ed25519"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -37,6 +38,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
+	}
+
+	// Token Authentication
+	if s.Config.Security.AuthToken != "" {
+		token := r.Header.Get("X-Nerve-Token")
+		if subtle.ConstantTimeCompare([]byte(token), []byte(s.Config.Security.AuthToken)) != 1 {
+			log.Printf("Rejected unauthorized connection from %s", r.RemoteAddr)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	proto := r.Header.Get("X-Nerve-Protocol")

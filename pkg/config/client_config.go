@@ -30,6 +30,10 @@ type ClientConfig struct {
 	// RemoteAddr is the address of the Phoenix server (e.g., "example.com:8080").
 	RemoteAddr string `toml:"remote_addr"`
 
+	// AuthToken is sent to the server for authentication.
+	// Must match the server's auth_token.
+	AuthToken string `toml:"auth_token"`
+
 	// Inbounds is a list of local listeners that the client will open.
 	// Each inbound corresponds to a specific protocol and local port.
 	Inbounds []ClientInbound `toml:"inbounds"`
@@ -42,6 +46,11 @@ type ClientConfig struct {
 
 	// ServerPublicKey is the detailed public key of the server (Base64).
 	ServerPublicKey string `toml:"server_public_key"`
+
+	// TLSMode controls the TLS verification strategy.
+	// "system" = use system CA store (for CDN/Cloudflare setups)
+	// "" (empty) = use Phoenix Ed25519 pinning or h2c based on other fields
+	TLSMode string `toml:"tls_mode"`
 }
 
 // DefaultClientConfig returns a basic client configuration with a single SOCKS5 inbound.

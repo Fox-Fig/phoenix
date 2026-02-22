@@ -15,7 +15,19 @@ import (
 func main() {
 	configPath := flag.String("config", "server.toml", "Path to server configuration file")
 	genKeys := flag.Bool("gen-keys", false, "Generate a new pair of Ed25519 keys (public/private)")
+	genToken := flag.Bool("gen-token", false, "Generate a secure random auth token")
 	flag.Parse()
+
+	if *genToken {
+		token, err := crypto.GenerateToken()
+		if err != nil {
+			log.Fatalf("Failed to generate token: %v", err)
+		}
+		fmt.Println("=== Phoenix Token Generator ===")
+		fmt.Println("Auth Token (add to both server and client config):")
+		fmt.Println(token)
+		return
+	}
 
 	if *genKeys {
 		priv, pub, err := crypto.GenerateKeypair()

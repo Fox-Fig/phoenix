@@ -8,12 +8,22 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"math/big"
 	"os"
 	"time"
 )
+
+// GenerateToken generates a cryptographically secure random token (32 bytes, hex encoded).
+func GenerateToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
 
 // GenerateKeypair generates a new Ed25519 keypair.
 // Returns PEM encoded private key and Base64 encoded public key.

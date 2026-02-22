@@ -38,7 +38,7 @@ func NewClient(cfg *config.ClientConfig) *Client {
 	}
 
 	// Initialize scheme based on config
-	if cfg.PrivateKeyPath != "" || cfg.ServerPublicKey != "" {
+	if cfg.TLSMode == "system" || cfg.PrivateKeyPath != "" || cfg.ServerPublicKey != "" {
 		c.Scheme = "https"
 	} else {
 		c.Scheme = "http"
@@ -53,9 +53,17 @@ func NewClient(cfg *config.ClientConfig) *Client {
 func (c *Client) createHTTPClient() *http.Client {
 	var tr *http2.Transport
 
-	// Check if Secure Mode is requested (mTLS or One-Way TLS)
-	// Requires either PrivateKey (mTLS) OR ServerPublicKey (One-Way)
-	if c.Config.PrivateKeyPath != "" || c.Config.ServerPublicKey != "" {
+	// System TLS Mode (for CDN like Cloudflare)
+	if c.Config.TLSMode == "system" {
+		log.Println("Creating SYSTEM transport (TLS via System CA)")
+		tr = &http2.Transport{
+			TLSClientConfig:            &tls.Config{},
+			StrictMaxConcurrentStreams: true,
+			ReadIdleTimeout:            0,
+			PingTimeout:                5 * time.Second,
+		}
+	} else if c.Config.PrivateKeyPath != "" || c.Config.ServerPublicKey != "" {
+		// Phoenix Secure Mode (mTLS or One-Way TLS with Ed25519 pinning)
 		log.Println("Creating SECURE transport (TLS)")
 
 		var certs []tls.Certificate
@@ -148,6 +156,9 @@ func (c *Client) Dial(proto protocol.ProtocolType, target string) (io.ReadWriteC
 	req.Header.Set("X-Nerve-Protocol", string(proto))
 	if target != "" {
 		req.Header.Set("X-Nerve-Target", target)
+	}
+	if c.Config.AuthToken != "" {
+		req.Header.Set("X-Nerve-Token", c.Config.AuthToken)
 	}
 
 	respChan := make(chan *http.Response, 1)

@@ -15,6 +15,18 @@ import (
 	"golang.org/x/net/proxy"
 )
 
+// suiteConfig holds the parameters for a single test suite run.
+type suiteConfig struct {
+	Name           string
+	ServerConfFile string
+	ClientConfFile string
+	ServerConf     string
+	ClientConf     string
+	SOCKS5Addr     string
+	EchoTCPAddr    string
+	EchoUDPPort    uint16
+}
+
 func main() {
 	// 1. Build binaries
 	log.Println("Building binaries...")
@@ -25,81 +37,36 @@ func main() {
 		log.Fatalf("Build failed: %v", err)
 	}
 
-	// 2. Generate Keys
-	log.Println("Generating Keys...")
+	// 2. Start shared Echo Servers
+	go startTCPEchoServer(":9001")
+	go startUDPEchoServer(":9002")
+	time.Sleep(500 * time.Millisecond)
+
+	// ========================================
+	// Phase 1: mTLS Direct
+	// ========================================
+	log.Println("\n====================================")
+	log.Println("  PHASE 1: mTLS Direct Connection")
+	log.Println("====================================")
+
 	privServer, pubServer, _ := crypto.GenerateKeypair()
 	privClient, pubClient, _ := crypto.GenerateKeypair()
-
 	os.WriteFile("server.key", privServer, 0600)
 	os.WriteFile("client.key", privClient, 0600)
 
-	// 3. Create Configs
-	log.Println("Creating Configs...")
-	createConfigs(pubServer, pubClient)
-
-	// 4. Start Echo Servers
-	go startTCPEchoServer(":9001")
-	go startUDPEchoServer(":9002")
-
-	// 5. Start Phoenix Server
-	log.Println("Starting Phoenix Server...")
-	serverCmd := exec.Command("./bin/server", "--config", "test_server.toml")
-	serverCmd.Stdout = os.Stdout
-	serverCmd.Stderr = os.Stderr
-	if err := serverCmd.Start(); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
-	defer func() {
-		serverCmd.Process.Kill()
-	}()
-
-	// 6. Start Phoenix Client
-	log.Println("Starting Phoenix Client...")
-	clientCmd := exec.Command("./bin/client", "--config", "test_client.toml")
-	clientCmd.Stdout = os.Stdout
-	clientCmd.Stderr = os.Stderr
-	if err := clientCmd.Start(); err != nil {
-		log.Fatalf("Failed to start client: %v", err)
-	}
-	defer func() {
-		clientCmd.Process.Kill()
-	}()
-
-	time.Sleep(2 * time.Second) // Wait for startup
-
-	// 7. Test TCP
-	log.Println("=== Testing TCP via SOCKS5 ===")
-	testTCP("127.0.0.1:1080", "127.0.0.1:9001")
-	log.Println("=== Testing TCP Speed (10MB) ===")
-	testTCPSpeed("127.0.0.1:1080", "127.0.0.1:9001", 10*1024*1024)
-
-	// 8. Test UDP
-	log.Println("=== Testing UDP via SOCKS5 (Single) ===")
-	testUDP("127.0.0.1:1080", "127.0.0.1:9002")
-
-	log.Println("=== Testing UDP Speed (10MB / 10K Packets) ===")
-	testUDPSpeed("127.0.0.1:1080", "127.0.0.1:9002", 10000)
-
-	log.Println("=== ALL TESTS PASSED ===")
-
-	// Cleanup
-	os.Remove("server.key")
-	os.Remove("client.key")
-	os.Remove("test_server.toml")
-	os.Remove("test_client.toml")
-}
-
-func createConfigs(serverPub, clientPub string) {
-	serverConf := fmt.Sprintf(`
+	runSuite(suiteConfig{
+		Name:           "mTLS",
+		ServerConfFile: "test_server_mtls.toml",
+		ClientConfFile: "test_client_mtls.toml",
+		ServerConf: fmt.Sprintf(`
 listen_addr = ":8080"
 [security]
 enable_socks5 = true
 enable_udp = true
 private_key = "server.key"
 authorized_clients = ["%s"]
-`, clientPub)
-
-	clientConf := fmt.Sprintf(`
+`, pubClient),
+		ClientConf: fmt.Sprintf(`
 remote_addr = "127.0.0.1:8080"
 private_key = "client.key"
 server_public_key = "%s"
@@ -107,203 +74,115 @@ server_public_key = "%s"
 protocol = "socks5"
 local_addr = "127.0.0.1:1080"
 enable_udp = true
-`, serverPub)
+`, pubServer),
+		SOCKS5Addr:  "127.0.0.1:1080",
+		EchoTCPAddr: "127.0.0.1:9001",
+		EchoUDPPort: 9002,
+	})
 
-	os.WriteFile("test_server.toml", []byte(serverConf), 0644)
-	os.WriteFile("test_client.toml", []byte(clientConf), 0644)
+	// Cleanup phase 1
+	os.Remove("server.key")
+	os.Remove("client.key")
+	os.Remove("test_server_mtls.toml")
+	os.Remove("test_client_mtls.toml")
+
+	// ========================================
+	// Phase 2: h2c + Token Auth
+	// ========================================
+	log.Println("\n====================================")
+	log.Println("  PHASE 2: Token Auth (h2c)")
+	log.Println("====================================")
+
+	token, _ := crypto.GenerateToken()
+
+	runSuite(suiteConfig{
+		Name:           "Token",
+		ServerConfFile: "test_server_token.toml",
+		ClientConfFile: "test_client_token.toml",
+		ServerConf: fmt.Sprintf(`
+listen_addr = ":8081"
+[security]
+auth_token = "%s"
+enable_socks5 = true
+enable_udp = true
+`, token),
+		ClientConf: fmt.Sprintf(`
+remote_addr = "127.0.0.1:8081"
+auth_token = "%s"
+[[inbounds]]
+protocol = "socks5"
+local_addr = "127.0.0.1:1081"
+enable_udp = true
+`, token),
+		SOCKS5Addr:  "127.0.0.1:1081",
+		EchoTCPAddr: "127.0.0.1:9001",
+		EchoUDPPort: 9002,
+	})
+
+	// Cleanup phase 2
+	os.Remove("test_server_token.toml")
+	os.Remove("test_client_token.toml")
+
+	log.Println("\n====================================")
+	log.Println("  ALL PHASES PASSED ✓")
+	log.Println("====================================")
 }
 
-func testTCPSpeed(proxyAddr, targetAddr string, size int) {
-	dialer, _ := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
-	conn, err := dialer.Dial("tcp", targetAddr)
-	if err != nil {
-		log.Fatalf("TCP Speed Dial failed: %v", err)
+func runSuite(cfg suiteConfig) {
+	log.Printf("[%s] Writing configs...", cfg.Name)
+	os.WriteFile(cfg.ServerConfFile, []byte(cfg.ServerConf), 0644)
+	os.WriteFile(cfg.ClientConfFile, []byte(cfg.ClientConf), 0644)
+
+	// Start Server
+	log.Printf("[%s] Starting Phoenix Server...", cfg.Name)
+	serverCmd := exec.Command("./bin/server", "--config", cfg.ServerConfFile)
+	serverCmd.Stdout = os.Stdout
+	serverCmd.Stderr = os.Stderr
+	if err := serverCmd.Start(); err != nil {
+		log.Fatalf("[%s] Failed to start server: %v", cfg.Name, err)
 	}
-	defer conn.Close()
-
-	data := make([]byte, 32*1024)
-	totalSent := 0
-	start := time.Now()
-
-	// Note: Echo server echoes back. So we write X, read X.
-	// We can write continuously in a loop?
-	// But TCP flow control will block if we don't read.
-	// So we should Write and Read in parallel or chunks.
-
-	go func() {
-		buf := make([]byte, 32*1024)
-		received := 0
-		for received < size {
-			n, err := conn.Read(buf)
-			if err != nil {
-				break
-			}
-			received += n
-		}
+	defer func() {
+		serverCmd.Process.Kill()
+		serverCmd.Wait()
 	}()
 
-	for totalSent < size {
-		n := len(data)
-		if size-totalSent < n {
-			n = size - totalSent
-		}
-		if _, err := conn.Write(data[:n]); err != nil {
-			log.Fatalf("TCP Speed Write failed: %v", err)
-		}
-		totalSent += n
+	// Start Client
+	log.Printf("[%s] Starting Phoenix Client...", cfg.Name)
+	clientCmd := exec.Command("./bin/client", "--config", cfg.ClientConfFile)
+	clientCmd.Stdout = os.Stdout
+	clientCmd.Stderr = os.Stderr
+	if err := clientCmd.Start(); err != nil {
+		log.Fatalf("[%s] Failed to start client: %v", cfg.Name, err)
 	}
-
-	duration := time.Since(start)
-	mbps := float64(size) * 8 / (1000000 * duration.Seconds())
-	log.Printf("TCP Speed: %.2f Mbps (%.2f MB in %v)", mbps, float64(size)/1024/1024, duration)
-}
-
-func testUDPSpeed(proxyAddr, targetAddr string, packets int) {
-	// Similar to testUDPStress but optimized for measurement
-	testUDPStress(proxyAddr, targetAddr) // Re-use stress test as speed test logic is similar
-}
-
-// ... (Existing functions)
-
-func testUDPStress(proxyAddr, targetAddr string) {
-	// Similar setup to testUDP
-	// 1. Connect TCP to Proxy
-	conn, err := net.Dial("tcp", proxyAddr)
-	if err != nil {
-		log.Fatalf("Stress Handshake TCP Dial failed: %v", err)
-	}
-	defer conn.Close()
-
-	// 2. Handshake
-	conn.Write([]byte{0x05, 0x01, 0x00})
-	buf := make([]byte, 2)
-	io.ReadFull(conn, buf)
-
-	// 3. Request UDP ASSOCIATE
-	req := []byte{0x05, 0x03, 0x00, 0x01, 0, 0, 0, 0, 0, 0}
-	conn.Write(req)
-
-	// 4. Read Reply
-	reply := make([]byte, 10)
-	io.ReadFull(conn, reply)
-
-	var relayPort int
-	if reply[3] == 0x01 {
-		relayPort = int(binary.BigEndian.Uint16(reply[8:10]))
-	} else if reply[3] == 0x04 {
-		rest := make([]byte, 12)
-		io.ReadFull(conn, rest)
-		full := append(reply, rest...)
-		relayPort = int(binary.BigEndian.Uint16(full[20:22]))
-	}
-
-	proxyHost, _, _ := net.SplitHostPort(proxyAddr)
-	relayAddr := net.JoinHostPort(proxyHost, fmt.Sprint(relayPort))
-	log.Printf("Stress UDP Relay: %s", relayAddr)
-
-	// 5. Send Stream
-	uConn, err := net.Dial("udp", relayAddr)
-	if err != nil {
-		log.Fatalf("Stress UDP Dial failed: %v", err)
-	}
-	defer uConn.Close()
-
-	// SOCKS5 UDP Header [00 00 00 01 127 0 0 1 PORT DATA]
-	basePkt := make([]byte, 0, 1500)
-	basePkt = append(basePkt, 0x00, 0x00, 0x00, 0x01)
-	basePkt = append(basePkt, []byte{127, 0, 0, 1}...)
-	port := make([]byte, 2)
-	binary.BigEndian.PutUint16(port, 9002)
-	basePkt = append(basePkt, port...)
-
-	headerLen := len(basePkt)
-	payloadSize := 1000 // 1KB payload
-	totalPackets := 1000
-
-	// Receiver Goroutine
-	receivedCount := 0
-	doneChan := make(chan bool)
-	go func() {
-		rBuf := make([]byte, 2048)
-		uConn.SetReadDeadline(time.Now().Add(10 * time.Second))
-		for {
-			n, err := uConn.Read(rBuf)
-			if err != nil {
-				break
-			}
-			if n > headerLen {
-				receivedCount++
-			}
-			if receivedCount == totalPackets {
-				doneChan <- true
-				return
-			}
-		}
-		doneChan <- false
+	defer func() {
+		clientCmd.Process.Kill()
+		clientCmd.Wait()
 	}()
 
-	start := time.Now()
-	for i := 0; i < totalPackets; i++ {
-		// Construct packet with sequence number in payload
-		pkt := make([]byte, len(basePkt))
-		copy(pkt, basePkt)
+	time.Sleep(2 * time.Second)
 
-		data := make([]byte, payloadSize)
-		binary.BigEndian.PutUint32(data, uint32(i)) // Seq number
-		pkt = append(pkt, data...)
+	// TCP Test
+	log.Printf("[%s] === Testing TCP via SOCKS5 ===", cfg.Name)
+	testTCP(cfg.SOCKS5Addr, cfg.EchoTCPAddr)
 
-		if _, err := uConn.Write(pkt); err != nil {
-			log.Fatalf("Stress Write failed at %d: %v", i, err)
-		}
-		// Slight delay to mimic streaming (optional, but 0 delay tests buffering limits)
-		time.Sleep(1 * time.Millisecond)
-	}
+	// TCP Speed Test
+	log.Printf("[%s] === Testing TCP Speed (10MB) ===", cfg.Name)
+	testTCPSpeed(cfg.SOCKS5Addr, cfg.EchoTCPAddr, 10*1024*1024)
 
-	log.Printf("Sent %d packets in %v", totalPackets, time.Since(start))
+	// UDP Test
+	log.Printf("[%s] === Testing UDP via SOCKS5 ===", cfg.Name)
+	testUDP(cfg.SOCKS5Addr, cfg.EchoUDPPort)
 
-	// Wait for completion
-	select {
-	case success := <-doneChan:
-		if !success {
-			log.Printf("Stress Test: Only received %d/%d packets (Timeout/Error)", receivedCount, totalPackets)
-			// Don't fail hard, just warn. UDP is lossy.
-			// But on Localhost it should be near 100%
-		} else {
-			log.Printf("Stress Test Success: Received %d/%d packets", receivedCount, totalPackets)
-		}
-	case <-time.After(15 * time.Second):
-		log.Printf("Stress Test Timeout: Received %d/%d packets", receivedCount, totalPackets)
-	}
+	// UDP Stress Test
+	log.Printf("[%s] === Testing UDP Speed (1000 Packets) ===", cfg.Name)
+	testUDPStress(cfg.SOCKS5Addr, cfg.EchoUDPPort)
+
+	log.Printf("[%s] === ALL TESTS PASSED ===", cfg.Name)
 }
 
-func startTCPEchoServer(addr string) {
-	l, err := net.Listen("tcp", addr)
-	if err != nil {
-		log.Fatalf("TCP Echo Listen failed: %v", err)
-	}
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			return
-		}
-		go io.Copy(conn, conn)
-	}
-}
-
-func startUDPEchoServer(addr string) {
-	conn, err := net.ListenPacket("udp", addr)
-	if err != nil {
-		log.Fatalf("UDP Echo Listen failed: %v", err)
-	}
-	buf := make([]byte, 1024)
-	for {
-		n, peer, err := conn.ReadFrom(buf)
-		if err != nil {
-			continue
-		}
-		conn.WriteTo(buf[:n], peer)
-	}
-}
+// ========================================
+// Test Functions
+// ========================================
 
 func testTCP(proxyAddr, targetAddr string) {
 	dialer, err := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
@@ -333,21 +212,55 @@ func testTCP(proxyAddr, targetAddr string) {
 	log.Printf("TCP Success: %s", reply)
 }
 
-func testUDP(proxyAddr, targetAddr string) {
-	// Standard Go proxy package does NOT support UDP Associate.
-	// We must implement SOCKS5 UDP Associate handshake manually.
+func testTCPSpeed(proxyAddr, targetAddr string, size int) {
+	dialer, _ := proxy.SOCKS5("tcp", proxyAddr, nil, proxy.Direct)
+	conn, err := dialer.Dial("tcp", targetAddr)
+	if err != nil {
+		log.Fatalf("TCP Speed Dial failed: %v", err)
+	}
+	defer conn.Close()
 
-	// 1. Connect TCP to Proxy
+	data := make([]byte, 32*1024)
+	totalSent := 0
+	start := time.Now()
+
+	go func() {
+		buf := make([]byte, 32*1024)
+		received := 0
+		for received < size {
+			n, err := conn.Read(buf)
+			if err != nil {
+				break
+			}
+			received += n
+		}
+	}()
+
+	for totalSent < size {
+		n := len(data)
+		if size-totalSent < n {
+			n = size - totalSent
+		}
+		if _, err := conn.Write(data[:n]); err != nil {
+			log.Fatalf("TCP Speed Write failed: %v", err)
+		}
+		totalSent += n
+	}
+
+	duration := time.Since(start)
+	mbps := float64(size) * 8 / (1000000 * duration.Seconds())
+	log.Printf("TCP Speed: %.2f Mbps (%.2f MB in %v)", mbps, float64(size)/1024/1024, duration)
+}
+
+func testUDP(proxyAddr string, echoUDPPort uint16) {
 	conn, err := net.Dial("tcp", proxyAddr)
 	if err != nil {
 		log.Fatalf("UDP Handshake TCP Dial failed: %v", err)
 	}
 	defer conn.Close()
 
-	// 2. Handshake (Auth)
-	// Send [HEX: 05 01 00] (VER 5, NMETHODS 1, METHOD 0)
+	// Handshake
 	conn.Write([]byte{0x05, 0x01, 0x00})
-
 	buf := make([]byte, 2)
 	if _, err := io.ReadFull(conn, buf); err != nil {
 		log.Fatalf("UDP Handshake Read failed: %v", err)
@@ -356,15 +269,12 @@ func testUDP(proxyAddr, targetAddr string) {
 		log.Fatalf("UDP Handshake Method rejected: %v", buf)
 	}
 
-	// 3. Request UDP ASSOCIATE
-	// Format: [05, 03, 00, 01, 0,0,0,0, 0,0] (Listen on 0.0.0.0:0)
+	// Request UDP ASSOCIATE
 	req := []byte{0x05, 0x03, 0x00, 0x01, 0, 0, 0, 0, 0, 0}
 	conn.Write(req)
 
-	// 4. Read Reply
-	// Format: [05, 00, 00, ATYP, BND.ADDR, BND.PORT]
-	// We need BND.PORT to know where to send UDP packets.
-	reply := make([]byte, 10) // IPv4 response usually
+	// Read Reply
+	reply := make([]byte, 10)
 	if _, err := io.ReadFull(conn, reply); err != nil {
 		log.Fatalf("UDP Handshake Reply Read failed: %v", err)
 	}
@@ -372,51 +282,35 @@ func testUDP(proxyAddr, targetAddr string) {
 		log.Fatalf("UDP Handshake Failed with Rep: %d", reply[1])
 	}
 
-	// Parse BND.ADDR/PORT
-	var relayIP net.IP
 	var relayPort int
 	if reply[3] == 0x01 {
-		// IPv4
-		relayIP = net.IP(reply[4:8])
 		relayPort = int(binary.BigEndian.Uint16(reply[8:10]))
 	} else if reply[3] == 0x04 {
-		// IPv6
-		// We already read 10 bytes: [VER, REP, RSV, ATYP(1), ADDR(4), PORT(2)? NO]
-		// Reply buffer size was 10.
-		// If ATYP=4 (IPv6), header is: 4 bytes (VER..ATYP) + 16 bytes IP + 2 bytes PORT = 22 bytes.
-		// We read 10 bytes. So we have VER..ATYP (4) + first 6 bytes of IPv6.
-		// We need to read 12 more bytes.
 		rest := make([]byte, 12)
 		if _, err := io.ReadFull(conn, rest); err != nil {
 			log.Fatalf("UDP Handshake IPv6 Read failed: %v", err)
 		}
-		// Full Buffer = reply (10) + rest (12) = 22.
 		full := append(reply, rest...)
-		relayIP = net.IP(full[4:20])
 		relayPort = int(binary.BigEndian.Uint16(full[20:22]))
 	}
-	_ = relayIP
 
-	// Note: BND.ADDR might be 0.0.0.0 or internal IP.
-	// We should send to proxyAddr's IP, but use relayPort.
 	proxyHost, _, _ := net.SplitHostPort(proxyAddr)
 	relayAddr := net.JoinHostPort(proxyHost, fmt.Sprint(relayPort))
 	log.Printf("UDP Relay is at: %s", relayAddr)
 
-	// 5. Send UDP Packet
+	// Send UDP Packet
 	uConn, err := net.Dial("udp", relayAddr)
 	if err != nil {
 		log.Fatalf("UDP Dial failed: %v", err)
 	}
 	defer uConn.Close()
 
-	// SOCKS5 UDP Header: [00 00 00 01 DST_IP DST_PORT DATA]
-	// DST = 127.0.0.1:9002
+	// SOCKS5 UDP Header
 	pkt := make([]byte, 0, 1024)
-	pkt = append(pkt, 0x00, 0x00, 0x00, 0x01) // RSV, FRAG, ATYP=IPv4
+	pkt = append(pkt, 0x00, 0x00, 0x00, 0x01)
 	pkt = append(pkt, []byte{127, 0, 0, 1}...)
 	port := make([]byte, 2)
-	binary.BigEndian.PutUint16(port, 9002)
+	binary.BigEndian.PutUint16(port, echoUDPPort)
 	pkt = append(pkt, port...)
 
 	msg := "Hello UDP"
@@ -426,8 +320,7 @@ func testUDP(proxyAddr, targetAddr string) {
 		log.Fatalf("UDP Write failed: %v", err)
 	}
 
-	// 6. Read Reply
-	// SOCKS5 UDP Header + Data
+	// Read Reply
 	resp := make([]byte, 1024)
 	uConn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	n, err := uConn.Read(resp)
@@ -435,15 +328,149 @@ func testUDP(proxyAddr, targetAddr string) {
 		log.Fatalf("UDP Read failed: %v", err)
 	}
 
-	// Parse header
-	// [00 00 00 01 ...] 10 bytes header
 	if n < 10 {
 		log.Fatalf("UDP Reply too short: %d", n)
 	}
-
 	replyMsg := string(resp[10:n])
 	if replyMsg != msg {
 		log.Fatalf("UDP Mismatch: got %q, want %q", replyMsg, msg)
 	}
 	log.Printf("UDP Success: %s", replyMsg)
+}
+
+func testUDPStress(proxyAddr string, echoUDPPort uint16) {
+	conn, err := net.Dial("tcp", proxyAddr)
+	if err != nil {
+		log.Fatalf("Stress Handshake TCP Dial failed: %v", err)
+	}
+	defer conn.Close()
+
+	// Handshake
+	conn.Write([]byte{0x05, 0x01, 0x00})
+	buf := make([]byte, 2)
+	io.ReadFull(conn, buf)
+
+	// Request UDP ASSOCIATE
+	req := []byte{0x05, 0x03, 0x00, 0x01, 0, 0, 0, 0, 0, 0}
+	conn.Write(req)
+
+	// Read Reply
+	reply := make([]byte, 10)
+	io.ReadFull(conn, reply)
+
+	var relayPort int
+	if reply[3] == 0x01 {
+		relayPort = int(binary.BigEndian.Uint16(reply[8:10]))
+	} else if reply[3] == 0x04 {
+		rest := make([]byte, 12)
+		io.ReadFull(conn, rest)
+		full := append(reply, rest...)
+		relayPort = int(binary.BigEndian.Uint16(full[20:22]))
+	}
+
+	proxyHost, _, _ := net.SplitHostPort(proxyAddr)
+	relayAddr := net.JoinHostPort(proxyHost, fmt.Sprint(relayPort))
+	log.Printf("Stress UDP Relay: %s", relayAddr)
+
+	// Send Stream
+	uConn, err := net.Dial("udp", relayAddr)
+	if err != nil {
+		log.Fatalf("Stress UDP Dial failed: %v", err)
+	}
+	defer uConn.Close()
+
+	// SOCKS5 UDP Header
+	basePkt := make([]byte, 0, 1500)
+	basePkt = append(basePkt, 0x00, 0x00, 0x00, 0x01)
+	basePkt = append(basePkt, []byte{127, 0, 0, 1}...)
+	port := make([]byte, 2)
+	binary.BigEndian.PutUint16(port, echoUDPPort)
+	basePkt = append(basePkt, port...)
+
+	headerLen := len(basePkt)
+	payloadSize := 1000
+	totalPackets := 1000
+
+	// Receiver
+	receivedCount := 0
+	doneChan := make(chan bool)
+	go func() {
+		rBuf := make([]byte, 2048)
+		uConn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		for {
+			n, err := uConn.Read(rBuf)
+			if err != nil {
+				break
+			}
+			if n > headerLen {
+				receivedCount++
+			}
+			if receivedCount == totalPackets {
+				doneChan <- true
+				return
+			}
+		}
+		doneChan <- false
+	}()
+
+	start := time.Now()
+	for i := 0; i < totalPackets; i++ {
+		pkt := make([]byte, len(basePkt))
+		copy(pkt, basePkt)
+
+		data := make([]byte, payloadSize)
+		binary.BigEndian.PutUint32(data, uint32(i))
+		pkt = append(pkt, data...)
+
+		if _, err := uConn.Write(pkt); err != nil {
+			log.Fatalf("Stress Write failed at %d: %v", i, err)
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	log.Printf("Sent %d packets in %v", totalPackets, time.Since(start))
+
+	select {
+	case success := <-doneChan:
+		if !success {
+			log.Printf("Stress Test: Only received %d/%d packets (Timeout/Error)", receivedCount, totalPackets)
+		} else {
+			log.Printf("Stress Test Success: Received %d/%d packets", receivedCount, totalPackets)
+		}
+	case <-time.After(15 * time.Second):
+		log.Printf("Stress Test Timeout: Received %d/%d packets", receivedCount, totalPackets)
+	}
+}
+
+// ========================================
+// Echo Servers
+// ========================================
+
+func startTCPEchoServer(addr string) {
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("TCP Echo Listen failed: %v", err)
+	}
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		go io.Copy(conn, conn)
+	}
+}
+
+func startUDPEchoServer(addr string) {
+	conn, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		log.Fatalf("UDP Echo Listen failed: %v", err)
+	}
+	buf := make([]byte, 1024)
+	for {
+		n, peer, err := conn.ReadFrom(buf)
+		if err != nil {
+			continue
+		}
+		conn.WriteTo(buf[:n], peer)
+	}
 }

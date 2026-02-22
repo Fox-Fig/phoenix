@@ -6,6 +6,16 @@
 # Example: "example.com:8080" (h2c) or "example.com:8443" (mTLS)
 remote_addr = "127.0.0.1:8080"
 
+# --- TLS Mode ---
+# tls_mode: Controls how TLS certificates are verified.
+#   "system" = Use OS system CA store (for CDN/Cloudflare setups).
+#              The server should run in h2c mode (no private_key).
+#   "" (empty/omitted) = Use Phoenix Ed25519 key pinning or h2c.
+# tls_mode = "system"
+
+# auth_token: Must match the server's auth_token for authentication.
+# auth_token = "your-secret-token-here"
+
 # --- Secure Authentication (mTLS / One-Way TLS) ---
 # To enable secure mode, generate keys with `./server -gen-keys`.
 # You MUST provide the Server's Public Key (`server_public_key`) to prevent MITM attacks.
