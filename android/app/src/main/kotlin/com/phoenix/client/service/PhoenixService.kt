@@ -89,6 +89,7 @@ class PhoenixService : Service() {
         super.onDestroy()
         intentionallyStopped.set(true)
         killProcess()
+        stopForeground(STOP_FOREGROUND_REMOVE)
         scope.cancel()
     }
 

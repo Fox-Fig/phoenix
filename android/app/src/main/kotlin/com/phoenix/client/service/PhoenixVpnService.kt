@@ -71,11 +71,21 @@ class PhoenixVpnService : VpnService() {
             ACTION_START -> {
                 intentionallyStopped.set(false)
                 val config = intent.toClientConfig()
+                // startForeground() is required by Android to avoid a crash,
+                // but we immediately remove it — the active VPN session keeps
+                // the service alive without a visible notification.
                 startForeground(NOTIFICATION_ID, buildNotification())
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 scope.launch { launchVpn(config) }
             }
             ACTION_STOP -> {
                 intentionallyStopped.set(true)
+                // Kill Go process first so it releases its copy of the TUN fd,
+                // then close the Kotlin-side PFD. Both must be closed before
+                // Android removes the VPN key icon from the status bar.
+                killProcess()
+                closeTun()
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
         }
@@ -87,6 +97,7 @@ class PhoenixVpnService : VpnService() {
         intentionallyStopped.set(true)
         killProcess()
         closeTun()
+        stopForeground(STOP_FOREGROUND_REMOVE)
         scope.cancel()
     }
 
@@ -253,7 +264,9 @@ class PhoenixVpnService : VpnService() {
         val channel = NotificationChannel(
             CHANNEL_ID,
             "Phoenix VPN",
-            NotificationManager.IMPORTANCE_LOW,
+            // IMPORTANCE_MIN: no status bar icon. Android already shows the VPN
+            // key icon system-wide; an extra app icon is redundant in VPN mode.
+            NotificationManager.IMPORTANCE_MIN,
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
