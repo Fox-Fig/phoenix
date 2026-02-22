@@ -15,16 +15,49 @@ jobs:
     strategy:
       matrix:
         include:
+          # --- Linux ---
           - os: linux
             arch: amd64
+            arch_name: amd64
           - os: linux
             arch: arm64
+            arch_name: arm64
+          - os: linux
+            arch: arm
+            arch_name: armv7
+            goarm: "7"
+          - os: linux
+            arch: arm
+            arch_name: arm32
+            goarm: "6"
+          - os: linux
+            arch: mips
+            arch_name: mips
+            gomips: hardfloat
+          - os: linux
+            arch: mipsle
+            arch_name: mipsle
+            gomips: hardfloat
+          - os: linux
+            arch: mips64
+            arch_name: mips64
+          - os: linux
+            arch: mips64le
+            arch_name: mips64le
+          - os: linux
+            arch: riscv64
+            arch_name: riscv64
+          # --- macOS ---
           - os: darwin
             arch: amd64
+            arch_name: amd64
           - os: darwin
             arch: arm64
+            arch_name: arm64
+          # --- Windows ---
           - os: windows
             arch: amd64
+            arch_name: amd64
             ext: .exe
 
     steps:
@@ -40,14 +73,16 @@ jobs:
         env:
           GOOS: ${{ matrix.os }}
           GOARCH: ${{ matrix.arch }}
+          GOARM: ${{ matrix.goarm }}
+          GOMIPS: ${{ matrix.gomips }}
           CGO_ENABLED: 0
         run: |
           mkdir -p dist
           EXT="${{ matrix.ext }}"
-          
+
           echo "Building Server..."
           go build -ldflags="-s -w" -o dist/phoenix-server${EXT} cmd/server/main.go
-          
+
           echo "Building Client..."
           go build -ldflags="-s -w" -o dist/phoenix-client${EXT} cmd/client/main.go
 
@@ -56,17 +91,20 @@ jobs:
           cp example_server.toml dist/
           cp example_client.toml dist/
           cd dist
-          
+
+          ZIP_ARCH="${{ matrix.arch_name }}"
+          EXT="${{ matrix.ext }}"
+
           # Create Client Zip
-          zip -r phoenix-client-${{ matrix.os }}-${{ matrix.arch }}.zip phoenix-client${{ matrix.ext }} example_client.toml
-          
+          zip -r phoenix-client-${{ matrix.os }}-${ZIP_ARCH}.zip phoenix-client${EXT} example_client.toml
+
           # Create Server Zip
-          zip -r phoenix-server-${{ matrix.os }}-${{ matrix.arch }}.zip phoenix-server${{ matrix.ext }} example_server.toml
+          zip -r phoenix-server-${{ matrix.os }}-${ZIP_ARCH}.zip phoenix-server${EXT} example_server.toml
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: assets-${{ matrix.os }}-${{ matrix.arch }}
+          name: assets-${{ matrix.os }}-${{ matrix.arch_name }}
           path: dist/*.zip
           retention-days: 1
 
