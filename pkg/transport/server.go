@@ -155,9 +155,29 @@ func (s *H2Stream) Close() error {
 	return nil
 }
 
+// logServerSecurityMode prints the server's security status at startup.
+func logServerSecurityMode(cfg *config.ServerConfig) {
+	// Auth mode
+	switch {
+	case cfg.Security.AuthToken != "" && len(cfg.Security.AuthorizedClientKeys) > 0:
+		log.Printf("Security Mode: mTLS (Ed25519) + Token Auth ENABLED")
+	case cfg.Security.AuthToken != "":
+		log.Printf("Security Mode: Token Auth ENABLED (h2c or TLS depending on private_key)")
+	case len(cfg.Security.AuthorizedClientKeys) > 0:
+		log.Printf("Security Mode: mTLS (Ed25519) — %d authorized clients", len(cfg.Security.AuthorizedClientKeys))
+	case cfg.Security.PrivateKeyPath != "":
+		log.Printf("Security Mode: ONE-WAY TLS (Ed25519) — no client auth")
+	default:
+		log.Printf("Security Mode: OPEN — No authentication configured!")
+	}
+}
+
 // StartServer starts the H2C/H2 Server.
 func StartServer(cfg *config.ServerConfig) error {
 	srv := NewServer(cfg)
+
+	// Log security status
+	logServerSecurityMode(cfg)
 
 	// Check if Private Key is configured for TLS
 	if cfg.Security.PrivateKeyPath != "" {

@@ -38,11 +38,14 @@ func NewClient(cfg *config.ClientConfig) *Client {
 	}
 
 	// Initialize scheme based on config
-	if cfg.TLSMode == "system" || cfg.PrivateKeyPath != "" || cfg.ServerPublicKey != "" {
+	if cfg.TLSMode == "system" || cfg.TLSMode == "insecure" || cfg.PrivateKeyPath != "" || cfg.ServerPublicKey != "" {
 		c.Scheme = "https"
 	} else {
 		c.Scheme = "http"
 	}
+
+	// Log security status
+	c.logSecurityMode()
 
 	// Initialize the first HTTP client
 	c.httpClient = c.createHTTPClient()
@@ -55,9 +58,21 @@ func (c *Client) createHTTPClient() *http.Client {
 
 	// System TLS Mode (for CDN like Cloudflare)
 	if c.Config.TLSMode == "system" {
-		log.Println("Creating SYSTEM transport (TLS via System CA)")
+		log.Println("[Transport] Creating SYSTEM TLS transport (System CA verification)")
 		tr = &http2.Transport{
 			TLSClientConfig:            &tls.Config{},
+			StrictMaxConcurrentStreams: true,
+			ReadIdleTimeout:            0,
+			PingTimeout:                5 * time.Second,
+		}
+	} else if c.Config.TLSMode == "insecure" {
+		// Insecure TLS Mode: HTTPS but skip certificate verification.
+		// Use for direct connections to servers with self-signed TLS certs.
+		log.Println("[Transport] Creating INSECURE TLS transport (cert verification DISABLED)")
+		tr = &http2.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, //nolint:gosec
+			},
 			StrictMaxConcurrentStreams: true,
 			ReadIdleTimeout:            0,
 			PingTimeout:                5 * time.Second,
@@ -120,8 +135,8 @@ func (c *Client) createHTTPClient() *http.Client {
 		}
 
 	} else {
-		// INSECURE MODE (h2c)
-		log.Println("Creating INSECURE transport (h2c)")
+		// CLEARTEXT MODE (h2c)
+		log.Println("[Transport] Creating CLEARTEXT transport (h2c)")
 		tr = &http2.Transport{
 			AllowHTTP: true,
 			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
@@ -134,6 +149,28 @@ func (c *Client) createHTTPClient() *http.Client {
 	}
 
 	return &http.Client{Transport: tr}
+}
+
+// logSecurityMode prints a human-readable security status at startup.
+func (c *Client) logSecurityMode() {
+	cfg := c.Config
+	tokenStatus := "disabled"
+	if cfg.AuthToken != "" {
+		tokenStatus = "ENABLED"
+	}
+
+	switch {
+	case cfg.PrivateKeyPath != "" && len(cfg.ServerPublicKey) > 0:
+		log.Printf("Security Mode: mTLS (Ed25519 key pinning) | Token Auth: %s", tokenStatus)
+	case cfg.PrivateKeyPath != "" || cfg.ServerPublicKey != "":
+		log.Printf("Security Mode: ONE-WAY TLS (Ed25519 key pinning) | Token Auth: %s", tokenStatus)
+	case cfg.TLSMode == "system":
+		log.Printf("Security Mode: SYSTEM TLS (System CA — use with CDN/Cloudflare) | Token Auth: %s", tokenStatus)
+	case cfg.TLSMode == "insecure":
+		log.Printf("Security Mode: INSECURE TLS (cert verify DISABLED) | Token Auth: %s", tokenStatus)
+	default:
+		log.Printf("Security Mode: CLEARTEXT h2c (no TLS) | Token Auth: %s", tokenStatus)
+	}
 }
 
 // Dial initiates a tunnel for a specific protocol.

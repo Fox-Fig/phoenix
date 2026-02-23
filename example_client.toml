@@ -8,9 +8,18 @@ remote_addr = "127.0.0.1:8080"
 
 # --- TLS Mode ---
 # tls_mode: Controls how TLS certificates are verified.
-#   "system" = Use OS system CA store (for CDN/Cloudflare setups).
-#              The server should run in h2c mode (no private_key).
-#   "" (empty/omitted) = Use Phoenix Ed25519 key pinning or h2c.
+#
+#   ""         (empty/omitted) = Use Phoenix Ed25519 key pinning or plain h2c.
+#              Use this for direct connections (with or without auth_token).
+#
+#   "system"   = Use OS system CA store — for CDN/Cloudflare setups ONLY.
+#              ⚠️  The server must have Cloudflare (or another TLS terminator) in front.
+#              ⚠️  Does NOT work for direct IP/port connections to a plain h2c server.
+#
+#   "insecure" = HTTPS but skip certificate verification.
+#              Use for direct connections to a server with self-signed TLS cert (private_key set).
+#              ⚠️  Vulnerable to MITM — use only on trusted networks or for testing.
+#
 # tls_mode = "system"
 
 # auth_token: Must match the server's auth_token for authentication.
