@@ -4,8 +4,8 @@
 
 # remote_addr: The address of the Phoenix server.
 #   - Direct:     "SERVER_IP:8080"     (h2c)
-#   - Direct TLS: "SERVER_IP:443"      (TLS)
-#   - Cloudflare: "your-domain.com:443" (CDN)
+#   - Direct TLS: "SERVER_IP:80"      (TLS)
+#   - Cloudflare: "your-domain.com:80" (CDN)
 remote_addr = "127.0.0.1:8080"
 
 # ═══════════════════════════════════════════════════════════
@@ -16,9 +16,9 @@ remote_addr = "127.0.0.1:8080"
 # Controls how the client handles TLS.
 #
 #   ""          (omit) → Cleartext h2c. For direct connections to h2c servers.
-#   "system"           → HTTPS with OS CA verification. For CDN/Cloudflare only.
+#   "system"           → HTTPS with OS CA verification. For CDN/Cloudflare only. Read the detailed conditions in the document.
 #   "insecure"         → HTTPS but skip cert verification. For direct connections
-#                         to servers with self-signed TLS certs (testing only).
+#                         to servers with self-signed TLS certs (testing only). This mode also allows connection to CDN/Cloudflare, read its conditions in the web document.
 #
 # tls_mode = "system"
 

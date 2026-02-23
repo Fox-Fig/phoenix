@@ -4,7 +4,7 @@
 
 # listen_addr: The TCP address and port the server will bind to.
 #   - ":8080"  → Cleartext h2c (no TLS)
-#   - ":443"   → TLS (requires private_key below)
+#   - ":80"   → TLS (requires private_key below)
 listen_addr = ":8080"
 
 # ═══════════════════════════════════════════════════════════
