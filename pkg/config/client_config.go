@@ -51,6 +51,15 @@ type ClientConfig struct {
 	// "system" = use system CA store (for CDN/Cloudflare setups)
 	// "" (empty) = use Phoenix Ed25519 pinning or h2c based on other fields
 	TLSMode string `toml:"tls_mode"`
+
+	// Fingerprint controls TLS ClientHello fingerprint spoofing.
+	// Mimics a browser to bypass DPI-based filtering on some ISPs.
+	// ""        → Go default TLS (no spoofing)
+	// "chrome"  → Mimic Chrome (recommended)
+	// "firefox" → Mimic Firefox
+	// "safari"  → Mimic Safari
+	// "random"  → Random browser fingerprint per connection
+	Fingerprint string `toml:"fingerprint"`
 }
 
 // DefaultClientConfig returns a basic client configuration with a single SOCKS5 inbound.

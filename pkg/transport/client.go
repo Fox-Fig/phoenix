@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/http2"
 )
 
@@ -52,6 +53,66 @@ func NewClient(cfg *config.ClientConfig) *Client {
 	return c
 }
 
+// dialWithFingerprint dials a TLS connection using uTLS to spoof a browser fingerprint.
+// If fingerprint is empty, falls back to standard Go TLS.
+func dialWithFingerprint(network, addr string, tlsCfg *tls.Config, fingerprint string) (net.Conn, error) {
+	if fingerprint == "" {
+		// Standard TLS — no spoofing
+		return tls.Dial(network, addr, tlsCfg)
+	}
+
+	rawConn, err := net.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract host for SNI
+	host, _, _ := net.SplitHostPort(addr)
+
+	utlsCfg := &utls.Config{
+		ServerName:         host,
+		InsecureSkipVerify: tlsCfg != nil && tlsCfg.InsecureSkipVerify, //nolint:gosec
+	}
+	if tlsCfg != nil && tlsCfg.RootCAs != nil {
+		utlsCfg.RootCAs = tlsCfg.RootCAs
+	}
+
+	uConn := utls.UClient(rawConn, utlsCfg, pickHelloID(fingerprint))
+	if err := uConn.Handshake(); err != nil {
+		rawConn.Close()
+		return nil, fmt.Errorf("utls handshake failed: %v", err)
+	}
+
+	// If caller provided custom VerifyPeerCertificate, run it now
+	if tlsCfg != nil && tlsCfg.VerifyPeerCertificate != nil {
+		state := uConn.ConnectionState()
+		rawCerts := make([][]byte, len(state.PeerCertificates))
+		for i, c := range state.PeerCertificates {
+			rawCerts[i] = c.Raw
+		}
+		if err := tlsCfg.VerifyPeerCertificate(rawCerts, nil); err != nil {
+			uConn.Close()
+			return nil, err
+		}
+	}
+
+	return uConn, nil
+}
+
+// pickHelloID maps a fingerprint name to a uTLS ClientHelloID.
+func pickHelloID(fp string) utls.ClientHelloID {
+	switch fp {
+	case "firefox":
+		return utls.HelloFirefox_Auto
+	case "safari":
+		return utls.HelloSafari_Auto
+	case "random":
+		return utls.HelloRandomized
+	default: // "chrome" or anything else
+		return utls.HelloChrome_Auto
+	}
+}
+
 // createHTTPClient creates a fresh http.Client based on configuration.
 func (c *Client) createHTTPClient() *http.Client {
 	var tr *http2.Transport
@@ -59,8 +120,11 @@ func (c *Client) createHTTPClient() *http.Client {
 	// System TLS Mode (for CDN like Cloudflare)
 	if c.Config.TLSMode == "system" {
 		log.Println("[Transport] Creating SYSTEM TLS transport (System CA verification)")
+		baseTLS := &tls.Config{}
 		tr = &http2.Transport{
-			TLSClientConfig:            &tls.Config{},
+			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+				return dialWithFingerprint(network, addr, baseTLS, c.Config.Fingerprint)
+			},
 			StrictMaxConcurrentStreams: true,
 			ReadIdleTimeout:            0,
 			PingTimeout:                5 * time.Second,
@@ -69,9 +133,10 @@ func (c *Client) createHTTPClient() *http.Client {
 		// Insecure TLS Mode: HTTPS but skip certificate verification.
 		// Use for direct connections to servers with self-signed TLS certs.
 		log.Println("[Transport] Creating INSECURE TLS transport (cert verification DISABLED)")
+		baseTLS := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
 		tr = &http2.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true, //nolint:gosec
+			DialTLS: func(network, addr string, cfg *tls.Config) (net.Conn, error) {
+				return dialWithFingerprint(network, addr, baseTLS, c.Config.Fingerprint)
 			},
 			StrictMaxConcurrentStreams: true,
 			ReadIdleTimeout:            0,
@@ -128,7 +193,9 @@ func (c *Client) createHTTPClient() *http.Client {
 		}
 
 		tr = &http2.Transport{
-			TLSClientConfig:            tlsConfig,
+			DialTLS: func(network, addr string, _ *tls.Config) (net.Conn, error) {
+				return dialWithFingerprint(network, addr, tlsConfig, c.Config.Fingerprint)
+			},
 			StrictMaxConcurrentStreams: true,
 			ReadIdleTimeout:            0,
 			PingTimeout:                5 * time.Second,
@@ -159,15 +226,20 @@ func (c *Client) logSecurityMode() {
 		tokenStatus = "ENABLED"
 	}
 
+	fpStatus := "disabled"
+	if cfg.Fingerprint != "" {
+		fpStatus = cfg.Fingerprint
+	}
+
 	switch {
 	case cfg.PrivateKeyPath != "" && len(cfg.ServerPublicKey) > 0:
-		log.Printf("Security Mode: mTLS (Ed25519 key pinning) | Token Auth: %s", tokenStatus)
+		log.Printf("Security Mode: mTLS (Ed25519 key pinning) | Token Auth: %s | Fingerprint: %s", tokenStatus, fpStatus)
 	case cfg.PrivateKeyPath != "" || cfg.ServerPublicKey != "":
-		log.Printf("Security Mode: ONE-WAY TLS (Ed25519 key pinning) | Token Auth: %s", tokenStatus)
+		log.Printf("Security Mode: ONE-WAY TLS (Ed25519 key pinning) | Token Auth: %s | Fingerprint: %s", tokenStatus, fpStatus)
 	case cfg.TLSMode == "system":
-		log.Printf("Security Mode: SYSTEM TLS (System CA — use with CDN/Cloudflare) | Token Auth: %s", tokenStatus)
+		log.Printf("Security Mode: SYSTEM TLS (System CA — use with CDN/Cloudflare) | Token Auth: %s | Fingerprint: %s", tokenStatus, fpStatus)
 	case cfg.TLSMode == "insecure":
-		log.Printf("Security Mode: INSECURE TLS (cert verify DISABLED) | Token Auth: %s", tokenStatus)
+		log.Printf("Security Mode: INSECURE TLS (cert verify DISABLED) | Token Auth: %s | Fingerprint: %s", tokenStatus, fpStatus)
 	default:
 		log.Printf("Security Mode: CLEARTEXT h2c (no TLS) | Token Auth: %s", tokenStatus)
 	}

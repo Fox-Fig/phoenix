@@ -22,6 +22,17 @@ remote_addr = "127.0.0.1:8080"
 #
 # tls_mode = "system"
 
+# ─── TLS Fingerprint Spoofing ─────────────────────────────
+# fingerprint: Impersonates a browser's TLS ClientHello to bypass DPI filtering.
+# Only effective when TLS is active (tls_mode set, or private_key configured).
+#   ""        → Go default (no spoofing)
+#   "chrome"  → Chrome 120 (recommended for best compatibility)
+#   "firefox" → Firefox 120
+#   "safari"  → Safari
+#   "random"  → Random browser fingerprint per connection
+#
+# fingerprint = "chrome"
+
 # ─── Token Authentication ──────────────────────────────────
 # Shared secret. Must match the server's auth_token.
 # Generate a token:  ./client -gen-token
