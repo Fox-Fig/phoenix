@@ -1,5 +1,5 @@
 
-.PHONY: all fmt test build clean speedtest
+.PHONY: all fmt test build clean speedtest integration_test
 
 all: fmt test build
 
@@ -17,6 +17,9 @@ build:
 
 speedtest: build
 	./bin/speedtest
+
+integration_test: build
+	go run cmd/integration_test/main.go
 
 clean:
 	rm -rf bin
