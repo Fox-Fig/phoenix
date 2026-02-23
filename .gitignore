@@ -42,3 +42,4 @@ Thumbs.db
 *.swp
 *.swo
 android-client
+android/app/src/main/jniLibs/
