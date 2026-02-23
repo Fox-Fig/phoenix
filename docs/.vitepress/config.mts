@@ -102,9 +102,11 @@ export default withMermaid(defineConfig({
               { text: 'معرفی و کلیات', link: '/fa/guide/getting-started' },
               { text: 'نصب و راه‌اندازی', link: '/fa/guide/installation' },
               { text: 'پیکربندی پیشرفته', link: '/fa/guide/configuration' },
+              { text: 'مدیریت خروجی‌ها (Inbounds)', link: '/fa/guide/inbounds' },
               { text: 'مدیریت با Systemd', link: '/fa/guide/systemd' },
               { text: 'رفع اشکال و خطاها', link: '/fa/guide/troubleshooting' },
-              { text: 'معماری و امنیت', link: '/fa/guide/architecture' }
+              { text: 'معماری و امنیت', link: '/fa/guide/architecture' },
+              { text: 'تاریخچه تغییرات', link: '/fa/guide/changelog' }
             ]
           }
         ],
