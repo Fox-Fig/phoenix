@@ -6,4 +6,4 @@ bin/
 .vscode
 node_modules
 .vitepress/cache/
-*.key
+*.keytest_*.toml

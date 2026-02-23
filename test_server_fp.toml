@@ -1,6 +1,0 @@
-
-listen_addr = ":8085"
-[security]
-enable_socks5 = true
-enable_udp = true
-private_key = "test_ecdsa_server.key"

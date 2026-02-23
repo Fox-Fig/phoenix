@@ -1,8 +1,0 @@
-
-remote_addr = "127.0.0.1:8085"
-tls_mode = "insecure"
-fingerprint = "chrome"
-[[inbounds]]
-protocol = "socks5"
-local_addr = "127.0.0.1:1085"
-enable_udp = true

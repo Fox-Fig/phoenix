@@ -73,6 +73,19 @@ func runAllPhases() {
 	os.WriteFile("test_server.key", privServer, 0600)
 	os.WriteFile("test_client.key", privClient, 0600)
 	os.WriteFile("test_ecdsa_server.key", ecdsaKey, 0600)
+	defer func() {
+		for _, f := range keyFiles {
+			os.Remove(f)
+		}
+	}()
+
+	// Allocate all ports upfront (dynamic, avoids conflicts from previous runs)
+	serverPorts := make([]string, 6)
+	clientPorts := make([]string, 6)
+	for i := range serverPorts {
+		serverPorts[i] = findFreePort()
+		clientPorts[i] = findFreePort()
+	}
 
 	phases := []struct {
 		title string
@@ -84,20 +97,20 @@ func runAllPhases() {
 				Name:           "h2c",
 				ServerConfFile: "test_server_h2c.toml",
 				ClientConfFile: "test_client_h2c.toml",
-				ServerConf: `
-listen_addr = ":8080"
+				ServerConf: fmt.Sprintf(`
+listen_addr = ":%s"
 [security]
 enable_socks5 = true
 enable_udp = true
-`,
-				ClientConf: `
-remote_addr = "127.0.0.1:8080"
+`, serverPorts[0]),
+				ClientConf: fmt.Sprintf(`
+remote_addr = "127.0.0.1:%s"
 [[inbounds]]
 protocol = "socks5"
-local_addr = "127.0.0.1:1080"
+local_addr = "127.0.0.1:%s"
 enable_udp = true
-`,
-				SOCKS5Addr:  "127.0.0.1:1080",
+`, serverPorts[0], clientPorts[0]),
+				SOCKS5Addr:  "127.0.0.1:" + clientPorts[0],
 				EchoTCPAddr: "127.0.0.1:9001",
 				EchoUDPPort: 9002,
 			},
@@ -109,21 +122,21 @@ enable_udp = true
 				ServerConfFile: "test_server_token.toml",
 				ClientConfFile: "test_client_token.toml",
 				ServerConf: fmt.Sprintf(`
-listen_addr = ":8081"
+listen_addr = ":%s"
 [security]
 auth_token = "%s"
 enable_socks5 = true
 enable_udp = true
-`, token),
+`, serverPorts[1], token),
 				ClientConf: fmt.Sprintf(`
-remote_addr = "127.0.0.1:8081"
+remote_addr = "127.0.0.1:%s"
 auth_token = "%s"
 [[inbounds]]
 protocol = "socks5"
-local_addr = "127.0.0.1:1081"
+local_addr = "127.0.0.1:%s"
 enable_udp = true
-`, token),
-				SOCKS5Addr:  "127.0.0.1:1081",
+`, serverPorts[1], token, clientPorts[1]),
+				SOCKS5Addr:  "127.0.0.1:" + clientPorts[1],
 				EchoTCPAddr: "127.0.0.1:9001",
 				EchoUDPPort: 9002,
 			},
@@ -134,22 +147,22 @@ enable_udp = true
 				Name:           "OneWayTLS",
 				ServerConfFile: "test_server_owtls.toml",
 				ClientConfFile: "test_client_owtls.toml",
-				ServerConf: `
-listen_addr = ":8082"
+				ServerConf: fmt.Sprintf(`
+listen_addr = ":%s"
 [security]
 enable_socks5 = true
 enable_udp = true
 private_key = "test_server.key"
-`,
+`, serverPorts[2]),
 				ClientConf: fmt.Sprintf(`
-remote_addr = "127.0.0.1:8082"
+remote_addr = "127.0.0.1:%s"
 server_public_key = "%s"
 [[inbounds]]
 protocol = "socks5"
-local_addr = "127.0.0.1:1082"
+local_addr = "127.0.0.1:%s"
 enable_udp = true
-`, pubServer),
-				SOCKS5Addr:  "127.0.0.1:1082",
+`, serverPorts[2], pubServer, clientPorts[2]),
+				SOCKS5Addr:  "127.0.0.1:" + clientPorts[2],
 				EchoTCPAddr: "127.0.0.1:9001",
 				EchoUDPPort: 9002,
 			},
@@ -161,23 +174,23 @@ enable_udp = true
 				ServerConfFile: "test_server_mtls.toml",
 				ClientConfFile: "test_client_mtls.toml",
 				ServerConf: fmt.Sprintf(`
-listen_addr = ":8083"
+listen_addr = ":%s"
 [security]
 enable_socks5 = true
 enable_udp = true
 private_key = "test_server.key"
 authorized_clients = ["%s"]
-`, pubClient),
+`, serverPorts[3], pubClient),
 				ClientConf: fmt.Sprintf(`
-remote_addr = "127.0.0.1:8083"
+remote_addr = "127.0.0.1:%s"
 private_key = "test_client.key"
 server_public_key = "%s"
 [[inbounds]]
 protocol = "socks5"
-local_addr = "127.0.0.1:1083"
+local_addr = "127.0.0.1:%s"
 enable_udp = true
-`, pubServer),
-				SOCKS5Addr:  "127.0.0.1:1083",
+`, serverPorts[3], pubServer, clientPorts[3]),
+				SOCKS5Addr:  "127.0.0.1:" + clientPorts[3],
 				EchoTCPAddr: "127.0.0.1:9001",
 				EchoUDPPort: 9002,
 			},
@@ -189,23 +202,23 @@ enable_udp = true
 				ServerConfFile: "test_server_inssec.toml",
 				ClientConfFile: "test_client_inssec.toml",
 				ServerConf: fmt.Sprintf(`
-listen_addr = ":8084"
+listen_addr = ":%s"
 [security]
 enable_socks5 = true
 enable_udp = true
 private_key = "test_server.key"
 auth_token = "%s"
-`, token),
+`, serverPorts[4], token),
 				ClientConf: fmt.Sprintf(`
-remote_addr = "127.0.0.1:8084"
+remote_addr = "127.0.0.1:%s"
 tls_mode = "insecure"
 auth_token = "%s"
 [[inbounds]]
 protocol = "socks5"
-local_addr = "127.0.0.1:1084"
+local_addr = "127.0.0.1:%s"
 enable_udp = true
-`, token),
-				SOCKS5Addr:  "127.0.0.1:1084",
+`, serverPorts[4], token, clientPorts[4]),
+				SOCKS5Addr:  "127.0.0.1:" + clientPorts[4],
 				EchoTCPAddr: "127.0.0.1:9001",
 				EchoUDPPort: 9002,
 			},
@@ -216,23 +229,23 @@ enable_udp = true
 				Name:           "InsecureTLS+Fingerprint",
 				ServerConfFile: "test_server_fp.toml",
 				ClientConfFile: "test_client_fp.toml",
-				ServerConf: `
-listen_addr = ":8085"
+				ServerConf: fmt.Sprintf(`
+listen_addr = ":%s"
 [security]
 enable_socks5 = true
 enable_udp = true
 private_key = "test_ecdsa_server.key"
-`,
-				ClientConf: `
-remote_addr = "127.0.0.1:8085"
+`, serverPorts[5]),
+				ClientConf: fmt.Sprintf(`
+remote_addr = "127.0.0.1:%s"
 tls_mode = "insecure"
 fingerprint = "chrome"
 [[inbounds]]
 protocol = "socks5"
-local_addr = "127.0.0.1:1085"
+local_addr = "127.0.0.1:%s"
 enable_udp = true
-`,
-				SOCKS5Addr:  "127.0.0.1:1085",
+`, serverPorts[5], clientPorts[5]),
+				SOCKS5Addr:  "127.0.0.1:" + clientPorts[5],
 				EchoTCPAddr: "127.0.0.1:9001",
 				EchoUDPPort: 9002,
 			},
@@ -240,26 +253,31 @@ enable_udp = true
 	}
 
 	passed := 0
-	for i, p := range phases {
+	for _, p := range phases {
 		fmt.Printf("\n====================================\n")
 		fmt.Printf("  %s\n", p.title)
 		fmt.Printf("====================================\n")
 		runSuite(p.cfg)
 		passed++
-		// Cleanup
+		// Cleanup temp config files
 		os.Remove(p.cfg.ServerConfFile)
 		os.Remove(p.cfg.ClientConfFile)
-		_ = i
-	}
-
-	// Cleanup key files
-	for _, f := range keyFiles {
-		os.Remove(f)
 	}
 
 	fmt.Printf("\n====================================\n")
 	fmt.Printf("  ALL %d PHASES PASSED ✓\n", passed)
 	fmt.Printf("====================================\n")
+}
+
+// findFreePort finds a free TCP port on localhost.
+func findFreePort() string {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		log.Fatal("findFreePort failed:", err)
+	}
+	_, port, _ := net.SplitHostPort(l.Addr().String())
+	l.Close()
+	return port
 }
 
 // ─── Interactive / Manual Mode ─────────────────────────────
