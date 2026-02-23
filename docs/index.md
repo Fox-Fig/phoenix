@@ -12,13 +12,10 @@ hero:
     alt: Phoenix Logo
   actions:
     - theme: brand
-      text: Get Started 🚀
+      text: Get Started
       link: /guide/getting-started
     - theme: alt
-      text: Architecture & Security 🛡️
-      link: /guide/architecture
-    - theme: alt
-      text: GitHub 🌟
+      text: View on GitHub
       link: https://github.com/Fox-Fig/phoenix
 
 features:

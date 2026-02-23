@@ -5,26 +5,32 @@ dir: rtl
 
 hero:
   name: "ققنوس (Phoenix)"
-  text: "عبور از فیلترینگ با حداکثر سرعت"
-  tagline: مقاوم در برابر DPI. شکستن محدودیت‌ها. همیشه متصل.
+  text: "تولدی دوباره در دنیای آزاد"
+  tagline: عبور از فیلترینگ با حداکثر سرعت، مقاوم در برابر DPI و همیشه متصل.
   image:
     src: /logo.png
     alt: لوگو ققنوس
   actions:
     - theme: brand
-      text: شروع کنید (نصب)
+      text: شروع کنید
       link: /fa/guide/getting-started
     - theme: alt
       text: مشاهده در گیت‌هاب
       link: https://github.com/Fox-Fig/phoenix
 
 features:
-  - title: مقاوم در برابر DPI
-    details: با استفاده از مالتی‌پلکسینگ HTTP/2 (h2c) ترافیک شما در ترافیک عادی وب مخفی می‌شود و تشخیص آن بسیار دشوار می‌گردد.
-  - title: حالت‌های امنیتی متنوع
-    details: انتخاب بین امنیت حداکثری (mTLS)، امنیت مشابه HTTPS (One-Way TLS) یا حالت مخفی (Stealth) برای سناریوهای مختلف.
-  - title: مقاوم و خود-ترمیم
-    details: با قابلیت "Hard Reset" و "Circuit Breaker"، به طور خودکار از اختلالات شبکه و حملات Probing بازیابی می‌شود.
+  - title: "⚡️ سرعت فوق‌العاده (h2c)"
+    details: انتقال پکت‌ها با کمترین تأخیر و بدون سربار رمزنگاری اضافه در حالت‌های مستقیم (بدون CDN).
+  - title: "🛡️ مخفی از دید DPI"
+    details: تقلید دقیق از اثرانگشت مروگرها (Chrome Fingerprint Spoofing) باعث می‌شود ترافیک شما عادی به نظر برسد.
+  - title: "🔐 امنیت منعطف و نظامی"
+    details: قابلیت انتخاب از میان حالت‌های Insecure, سیستم Token, One-Way TLS یا mTLS با احراز هویت دوطرفه.
+  - title: "🔄 خود-ترمیم (Circuit Breaker)"
+    details: سد قدرتمند در برابر حملات مسدودسازی و اختلال شبکه با امکان تازه‌سازی خودکار اتصالات مرده (Zombie).
+  - title: "🧩 خروجی‌های متنوع دستگاه‌ها"
+    details: پشتیبانی همزمان از SOCKS5 (به همراه UDP Associate)، پروتکل Shadowsocks و ایجاد تونل کاملا امن SSH.
+  - title: "🌐 نامرئی پشت سرورهای ابری"
+    details: سازگاری کامل با WebSockets و CDNهای معروف مانند Cloudflare برای دور نگه‌داشتن IP سرور از لیست سیاه.
 ---
 
 <div style="text-align: center; margin-top: 4rem; margin-bottom: 2rem;">
@@ -70,52 +76,120 @@ features:
 </div>
 
 <style>
-.donate-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  justify-content: center;
-  margin-top: 2rem;
+/* Modern Animated Background for Hero Area */
+.VPHero {
+  position: relative;
 }
+.VPHero::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(255, 107, 0, 0.12) 0%, rgba(255,107,0,0) 70%);
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(40px);
+  animation: pulse 4s infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes pulse {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+}
+
+.donate-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding: 0 1rem;
+}
+
 .donate-card {
   background: var(--vp-c-bg-soft);
   border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
-  padding: 1.5rem;
+  border-radius: 20px;
+  padding: 2rem 1.5rem;
   text-align: center;
-  flex: 1;
-  min-width: 280px;
-  max-width: 350px;
-  transition: all 0.2s ease-in-out;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  position: relative;
+  overflow: hidden;
 }
+
+.dark .donate-card {
+  background: rgba(30,30,30,0.4);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.donate-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 5px;
+  background: linear-gradient(90deg, var(--vp-c-brand-1), var(--vp-c-brand-3));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
 .donate-card:hover {
-  transform: translateY(-5px);
-  border-color: var(--vp-c-brand);
+  transform: translateY(-8px);
+  border-color: var(--vp-c-brand-1);
   background: var(--vp-c-bg-alt);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
+
+.dark .donate-card:hover {  
+  box-shadow: 0 15px 30px rgba(255, 107, 0, 0.12);
+  background: rgba(45,45,45,0.6);
+}
+
+.donate-card:hover::before {
+  opacity: 1;
+}
+
 .donate-card svg {
-  width: 64px;
-  height: 64px;
-  margin-bottom: 1rem;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 1.5rem;
+  transition: transform 0.3s ease;
 }
+
+.donate-card:hover svg {
+  transform: scale(1.1) rotate(5deg);
+}
+
 .donate-card h3 {
   margin: 0 0 1rem 0;
-  font-size: 1.2rem;
-  font-weight: 700;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
 }
+
 .donate-card code {
-  font-size: 0.85rem;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.8rem;
   word-break: break-all;
   display: block;
-  padding: 0.8rem;
-  background: var(--vp-c-bg-alt);
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
+  padding: 0.8rem 1rem;
+  background: var(--vp-custom-block-bg);
+  border-radius: 12px;
   width: 100%;
+  border: 1px solid var(--vp-c-divider);
+  transition: all 0.2s;
+  color: var(--vp-c-text-2);
+}
+
+.donate-card:hover code {
+  color: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-1);
+  background: transparent;
 }
 </style>
