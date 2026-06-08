@@ -38,11 +38,16 @@ listen_addr = ":8080"
 #   "CLIENT_PUBLIC_KEY_2..."
 # ]
 
-# allowed_sni: Restricts which SNI hostnames the server will accept during the TLS handshake.
-#   - If set    → Server will drop connections if the SNI doesn't match one in the list.
-#                 This protects against Active Probing by unauthorized scanners.
-#   - If empty  → Any SNI is accepted (default).
-# allowed_sni = ["google.com", "speedtest.net"]
+# `allowed_sni` restricts which SNI hostnames the server will accept.
+# - If you use SNI Spoofing, add the spoofed domain here (e.g. "speedtest.net").
+# - If you use a CDN, add your own domain here (e.g. "my-domain.com") so the CDN can route correctly.
+# - If you leave this array empty, the server accepts ANY SNI (not recommended for security).
+# - You can add multiple domains: ["speedtest.net", "my-domain.com"]
+allowed_sni = ["speedtest.net"]
+
+# `allow_empty_sni` determines if the server accepts direct IP connections where the SNI field is empty.
+# Set to `true` to allow clients to connect directly via IP without any SNI Spoofing.
+allow_empty_sni = true
 
 # ─── Security Modes Summary ──────────────────────────────
 #
@@ -114,9 +119,22 @@ enable_ssh = false
 # ── Settings for "socks5" type outbound ──
 
 # socks5_user: Username for authenticating with the upstream SOCKS5 proxy.
-# socks5_user = "admin"
+# target = "socks5-server-ip:1080"
+# socks5_user = "user"
+# socks5_pass = "pass"
 
-# socks5_pass: Password for authenticating with the upstream SOCKS5 proxy.
+# -------------------------------------------------------------
+# Outbound Type: "forwarder" (Raw TCP/UDP Port Forwarding)
+# -------------------------------------------------------------
+# If you run this server as a "Middle Server" (e.g., in Iran) and want to
+# forward raw encrypted packets to your destination server without decrypting
+# them, use this mode. It automatically listens on the server's `listen_addr`
+# for BOTH TCP and UDP, and forwards them directly to the `target`.
+# This drastically reduces latency and CPU usage on the middle server.
+#
+# [outbound]
+# type = "forwarder"
+# target = "foreign-server-ip:443"
 # socks5_pass = "123456"
 
 # ── Recovery settings for "phoenix" type outbound ──

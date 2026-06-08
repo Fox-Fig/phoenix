@@ -246,8 +246,14 @@ func logServerSecurityMode(cfg *config.ServerConfig) {
 	}
 }
 
-// StartServer starts the H2C/H2 Server.
+// StartServer starts the H2C/H2 Server or a simple L4 port forwarder.
 func StartServer(cfg *config.ServerConfig) error {
+	// If the server is configured as a simple outbound forwarder, bypass all TLS and HTTP/2 logic
+	if cfg.Outbound != nil && cfg.Outbound.Type == "forwarder" {
+		log.Printf("Starting in Port Forwarder mode (TCP/UDP) on %s -> %s", cfg.ListenAddr, cfg.Outbound.Target)
+		return StartPortForwarder(cfg.ListenAddr, cfg.Outbound.Target)
+	}
+
 	srv, err := NewServer(cfg)
 	if err != nil {
 		return err
@@ -322,17 +328,28 @@ func StartServer(cfg *config.ServerConfig) error {
 			GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 				if len(cfg.Security.AllowedSNI) > 0 {
 					allowed := false
-					for _, sni := range cfg.Security.AllowedSNI {
-						// hello.ServerName is the SNI received from the client
-						if hello.ServerName == sni {
-							allowed = true
-							break
+					
+					// Check for empty SNI (direct IP connection without spoofing)
+					if hello.ServerName == "" && cfg.Security.AllowEmptySNI {
+						allowed = true
+					} else {
+						// Check explicitly allowed SNIs and wildcard
+						for _, sni := range cfg.Security.AllowedSNI {
+							if sni == "*" || hello.ServerName == sni {
+								allowed = true
+								break
+							}
 						}
 					}
+
 					if !allowed {
-						log.Printf("[TLS] Dropped connection with unauthorized SNI: %s", hello.ServerName)
+						log.Printf("[TLS] Dropped connection with unauthorized SNI: '%s'", hello.ServerName)
 						return nil, fmt.Errorf("unrecognized SNI: %s", hello.ServerName)
 					}
+				} else if !cfg.Security.AllowEmptySNI && hello.ServerName == "" {
+					// Edge case: if AllowedSNI is empty but AllowEmptySNI is explicitly false
+					log.Printf("[TLS] Dropped connection with empty SNI (not allowed by config)")
+					return nil, fmt.Errorf("empty SNI not allowed")
 				}
 				// Return nil to continue with the default tlsConfig
 				return nil, nil

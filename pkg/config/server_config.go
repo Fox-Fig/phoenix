@@ -29,6 +29,9 @@ type ServerSecurity struct {
 	// AllowedSNI restricts which SNI hostnames the server will accept during the TLS handshake.
 	// If empty, any SNI is accepted (standard Go behavior).
 	AllowedSNI []string `toml:"allowed_sni"`
+
+	// AllowEmptySNI determines if the server accepts direct IP connections where the SNI field is empty.
+	AllowEmptySNI bool `toml:"allow_empty_sni"`
 }
 
 // DefaultServerSecurity returns the default security configuration (all disabled by default).
@@ -37,6 +40,7 @@ func DefaultServerSecurity() ServerSecurity {
 		EnableSOCKS5:      false,
 		EnableShadowsocks: false,
 		EnableSSH:         false,
+		AllowEmptySNI:     true, // Default to true to allow direct IP connections without SNI spoofing
 	}
 }
 
