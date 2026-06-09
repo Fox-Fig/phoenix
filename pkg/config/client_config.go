@@ -7,64 +7,60 @@ import (
 // ClientInbound defines a single inbound protocol binding on the client side.
 type ClientInbound struct {
 	// Protocol specifies the protocol type (e.g., "socks5", "shadowsocks", "ssh").
-	Protocol protocol.ProtocolType `toml:"protocol"`
+	Protocol protocol.ProtocolType `toml:"protocol" doc:"Protocol type for this inbound listener (e.g., 'socks5', 'ssh', 'shadowsocks')."`
 
 	// LocalAddr is the address and port the client should listen on (e.g., "127.0.0.1:1080").
-	LocalAddr string `toml:"local_addr"`
+	LocalAddr string `toml:"local_addr" doc:"Local address and port the client should listen on (e.g., '127.0.0.1:1080')."`
 
 	// EnableUDP allows UDP Associate for SOCKS5
-	EnableUDP bool `toml:"enable_udp,omitempty"`
+	EnableUDP bool `toml:"enable_udp,omitempty" doc:"Enable UDP Associate for SOCKS5 protocol." default:"true"`
 
 	// TargetAddr is the remote destination address (optional, mainly for SSH/Port Forwarding).
-	TargetAddr string `toml:"target_addr,omitempty"`
+	TargetAddr string `toml:"target_addr,omitempty" doc:"Remote destination address (mainly for SSH or direct Port Forwarding)."`
 
 	// Encryption and authentication parameters for the protocol (if applicable).
 	// For Shadowsocks, this might be "aes-256-gcm:password".
 	// For SSH, this might be a key file path or simple forwarding.
-	Auth string `toml:"auth,omitempty"`
+	Auth string `toml:"auth,omitempty" doc:"Authentication string for specific protocols (e.g., Shadowsocks cypher:password)."`
 }
 
 // ClientRecovery defines settings for zombie connection detection and full-jitter backoff.
 type ClientRecovery struct {
-	Enabled        bool `toml:"enabled"`
-	ErrorThreshold int  `toml:"error_threshold"`
-	ErrorWindowS   int  `toml:"error_window_s"`
-	BackoffBaseMs  int  `toml:"backoff_base_ms"`
-	BackoffCapMs   int  `toml:"backoff_cap_ms"`
-	BackoffJitter  bool `toml:"backoff_jitter"`
+	Enabled        bool `toml:"enabled" doc:"Enable or disable the recovery and exponential backoff system." default:"true"`
+	ErrorThreshold int  `toml:"error_threshold" doc:"Number of connection errors allowed within the error window before triggering a hard reset." default:"10"`
+	ErrorWindowS   int  `toml:"error_window_s" doc:"Time window in seconds to count connection errors." default:"30"`
+	BackoffBaseMs  int  `toml:"backoff_base_ms" doc:"Base delay in milliseconds for exponential backoff." default:"500"`
+	BackoffCapMs   int  `toml:"backoff_cap_ms" doc:"Maximum delay in milliseconds for exponential backoff." default:"15000"`
+	BackoffJitter  bool `toml:"backoff_jitter" doc:"Enable randomized AWS full-jitter for backoff delays." default:"true"`
 }
 
 // ClientConfig defines the full structure of the client configuration.
 // It allows for multiple simultaneous inbound listeners on different ports.
 type ClientConfig struct {
 	// RemoteAddr is the address of the Phoenix server (e.g., "example.com:8080").
-	RemoteAddr string `toml:"remote_addr"`
+	RemoteAddr string `toml:"remote_addr" doc:"The address and port of the remote Phoenix server (e.g., 'example.com:8080')." default:"127.0.0.1:8080"`
 
 	// AuthToken is sent to the server for authentication.
 	// Must match the server's auth_token.
-	AuthToken string `toml:"auth_token"`
-
-	// Inbounds is a list of local listeners that the client will open.
-	// Each inbound corresponds to a specific protocol and local port.
-	Inbounds []ClientInbound `toml:"inbounds"`
+	AuthToken string `toml:"auth_token" group:"Security" doc:"Authentication token. Must match the server's auth_token." commented:"true"`
 
 	// ClientID is a unique identifier or token for authentication with the server (optional, for future use).
-	ClientID string `toml:"client_id,omitempty"`
+	ClientID string `toml:"client_id,omitempty" doc:"Unique client identifier (for future use)." commented:"true"`
 
 	// PrivateKeyPath is the path to the client's private key file (PEM).
-	PrivateKeyPath string `toml:"private_key"`
+	PrivateKeyPath string `toml:"private_key" doc:"Path to the client's Ed25519 private key file (PEM format) for mTLS." commented:"true"`
 
 	// ServerPublicKey is the detailed public key of the server (Base64).
-	ServerPublicKey string `toml:"server_public_key"`
+	ServerPublicKey string `toml:"server_public_key" doc:"The exact Ed25519 public key of the server (Base64). Used for strict key pinning (One-Way TLS or mTLS)." commented:"true"`
 
 	// TLSMode controls the TLS verification strategy.
 	// "system" = use system CA store (for CDN/Cloudflare setups)
 	// "" (empty) = use Phoenix Ed25519 pinning or h2c based on other fields
-	TLSMode string `toml:"tls_mode"`
+	TLSMode string `toml:"tls_mode" doc:"TLS verification mode. 'system' uses system CA (e.g. for CDNs). 'insecure' disables verification. Leave empty for strict Phoenix key pinning or cleartext." default:"system" commented:"true"`
 
 	// CustomSNI specifies an arbitrary SNI value to be sent during the TLS handshake.
 	// If set, it overrides the remote address's hostname.
-	CustomSNI string `toml:"custom_sni"`
+	CustomSNI string `toml:"custom_sni" doc:"Arbitrary SNI hostname to send during TLS handshake (SNI spoofing)." default:"google.com" commented:"true"`
 
 	// Fingerprint controls TLS ClientHello fingerprint spoofing.
 	// Mimics a browser to bypass DPI-based filtering on some ISPs.
@@ -73,10 +69,14 @@ type ClientConfig struct {
 	// "firefox" → Mimic Firefox
 	// "safari"  → Mimic Safari
 	// "random"  → Random browser fingerprint per connection
-	Fingerprint string `toml:"fingerprint"`
+	Fingerprint string `toml:"fingerprint" doc:"TLS ClientHello fingerprint. Options: 'chrome', 'firefox', 'safari', 'random', 'chrome_dynamic', or empty for none." default:"chrome_dynamic" commented:"true"`
+
+	// Inbounds is a list of local listeners that the client will open.
+	// Each inbound corresponds to a specific protocol and local port.
+	Inbounds []ClientInbound `toml:"inbounds" group:"Inbound Listeners" doc:"List of local inbound listeners (e.g., SOCKS5 or local port forwards)."`
 
 	// Recovery controls how the client handles zombie connections and disconnects.
-	Recovery ClientRecovery `toml:"recovery"`
+	Recovery ClientRecovery `toml:"recovery" group:"Zombie Connection Recovery" doc:"Connection recovery and exponential backoff settings."`
 }
 
 // DefaultClientConfig returns a basic client configuration with a single SOCKS5 inbound.

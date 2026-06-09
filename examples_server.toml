@@ -1,0 +1,132 @@
+# ═══════════════════════════════════════════════════════════
+#  Phoenix Server Configuration
+# ═══════════════════════════════════════════════════════════
+
+# The address and port the server will bind to (e.g., 0.0.0.0:8080).
+listen_addr = "0.0.0.0:8080"
+
+
+# ═══════════════════════════════════════════════════════════
+#  Security
+# ═══════════════════════════════════════════════════════════
+# Security settings and protocol access controls.
+[security]
+
+# ─── Token Authentication ─────────────────────────────────────────────
+# Shared secret for application-level authentication. If set, clients must provide this exact token to connect.
+# auth_token = ""
+
+
+# ─── TLS / Key-Based Authentication ─────────────────────────────────────────────
+# Path to the server's Ed25519 private key file (PEM format) for TLS.
+# private_key = ""
+
+# List of authorized client Ed25519 public keys (Base64) for mTLS. If empty, mTLS is disabled.
+# authorized_clients = []
+
+
+# ─── SNI Controls ─────────────────────────────────────────────
+# List of allowed SNI hostnames for TLS handshake. Supports wildcard (*). Empty means all are accepted.
+# allowed_sni = []
+
+# Accept direct IP connections where the SNI field is empty during TLS handshake.
+allow_empty_sni = true
+
+
+# ═══════════════════════════════════════════════════════════
+#  Allowed Protocols
+# ═══════════════════════════════════════════════════════════
+# Enable or disable the SOCKS5 proxy protocol (TCP).
+enable_socks5 = false
+
+# Enable or disable UDP tunneling (SOCKS5 UDP Associate).
+enable_udp = false
+
+# Enable or disable the Shadowsocks proxy protocol.
+enable_shadowsocks = false
+
+# Enable or disable SSH tunneling.
+enable_ssh = false
+
+
+
+# ═══════════════════════════════════════════════════════════
+#  Outbound Relay (Optional)
+# ═══════════════════════════════════════════════════════════
+# Outbound configuration for middle-server relay. If set, this server forwards traffic to another server.
+[outbound]
+# Type of outbound connection: 'direct' (default), 'phoenix' (relay to another Phoenix server), 'socks5', or 'forwarder' (raw TCP/UDP port forwarding).
+type = "phoenix"
+
+
+# ─── SOCKS5 Forwarder Settings ─────────────────────────────────────────────
+# Username for SOCKS5 forwarder authentication.
+# socks5_user = ""
+
+# Password for SOCKS5 forwarder authentication.
+# socks5_pass = ""
+
+# The address and port of the remote Phoenix server (e.g., 'example.com:8080').
+remote_addr = "127.0.0.1:8080"
+
+# Transport protocol. 'h2' for HTTP/2 over TLS, 'h2c' for cleartext HTTP/2. Auto-detected from TLS settings if omitted.
+transport = "h2c"
+
+
+# ═══════════════════════════════════════════════════════════
+#  Security
+# ═══════════════════════════════════════════════════════════
+
+# ─── Token Authentication ─────────────────────────────────────────────
+# Authentication token (shared secret). Must match the server's auth_token.
+# auth_token = ""
+
+
+# ─── Key-Based Authentication (Ed25519) ─────────────────────────────────────────────
+# Path to the client's Ed25519 private key file (PEM format) for mTLS.
+# private_key = ""
+
+# The exact Ed25519 public key of the server (Base64). Used for strict key pinning (One-Way TLS or mTLS).
+# server_public_key = ""
+
+
+# ─── TLS Mode ─────────────────────────────────────────────
+# TLS verification mode. 'system' uses system CA (e.g. for CDNs). 'insecure' disables verification. Leave empty for strict Phoenix key pinning or cleartext.
+# tls_mode = "system"
+
+
+# ─── Custom SNI / SNI Spoofing ─────────────────────────────────────────────
+# Arbitrary SNI hostname to send during TLS handshake (SNI spoofing).
+# custom_sni = "google.com"
+
+
+# ─── TLS Fingerprint Spoofing ─────────────────────────────────────────────
+# TLS ClientHello fingerprint. Options: 'chrome', 'firefox', 'safari', 'random', 'chrome_dynamic', or empty for none.
+# fingerprint = "chrome_dynamic"
+
+
+# ═══════════════════════════════════════════════════════════
+#  Zombie Connection Recovery
+# ═══════════════════════════════════════════════════════════
+# Connection recovery and exponential backoff settings.
+[outbound.recovery]
+# Enable or disable the recovery and exponential backoff system.
+enabled = true
+
+# Number of connection errors allowed within the error window before triggering a hard reset.
+error_threshold = 10
+
+# Time window in seconds to count connection errors.
+error_window_s = 30
+
+# Base delay in milliseconds for exponential backoff.
+backoff_base_ms = 500
+
+# Maximum delay in milliseconds for exponential backoff.
+backoff_cap_ms = 15000
+
+# Enable randomized AWS full-jitter for backoff delays.
+backoff_jitter = true
+
+
+

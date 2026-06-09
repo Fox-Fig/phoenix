@@ -17,31 +17,41 @@ var bufPool = sync.Pool{
 // for high-throughput proxy tunnels, without allocating memory on every connection.
 // Returns the first error encountered, or nil if both finish with EOF.
 func Relay(left, right io.ReadWriteCloser) error {
-	errChan := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	var firstErr error
+	var once sync.Once
 
 	go func() {
+		defer wg.Done()
 		buf := bufPool.Get().(*[]byte)
 		_, err := io.CopyBuffer(right, left, *buf)
 		bufPool.Put(buf)
 		
-		// Attempt half-close if supported
-		if c, ok := right.(interface{ CloseWrite() error }); ok {
-			c.CloseWrite()
+		if err != nil {
+			once.Do(func() { firstErr = err })
 		}
-		errChan <- err
+		
+		// Aggressively close to unblock the other copy direction
+		left.Close()
+		right.Close()
 	}()
 
 	go func() {
+		defer wg.Done()
 		buf := bufPool.Get().(*[]byte)
 		_, err := io.CopyBuffer(left, right, *buf)
 		bufPool.Put(buf)
 		
-		// Attempt half-close if supported
-		if c, ok := left.(interface{ CloseWrite() error }); ok {
-			c.CloseWrite()
+		if err != nil {
+			once.Do(func() { firstErr = err })
 		}
-		errChan <- err
+		
+		left.Close()
+		right.Close()
 	}()
 
-	return <-errChan
+	wg.Wait()
+	return firstErr
 }

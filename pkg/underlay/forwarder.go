@@ -1,4 +1,4 @@
-package transport
+package underlay
 
 import (
 	"fmt"
@@ -62,7 +62,7 @@ func handleTCPForward(src net.Conn, targetAddr string) {
 
 	// utils.Relay handles bidirectional copy between the connections.
 	err = utils.Relay(src, dst)
-	if err != nil && !containsExpectedTeardownError(err.Error()) {
+	if err != nil && !utils.ContainsExpectedTeardownError(err.Error()) {
 		log.Printf("[Forwarder] TCP relay error: %v", err)
 	}
 }
