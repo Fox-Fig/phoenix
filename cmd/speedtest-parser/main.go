@@ -21,7 +21,7 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	
 	// Regex matches: Benchmark<Protocol>/<Scenario>_<Metric>-<Threads>   <Iter>   <ns/op> ns/op   [<MB/s> MB/s]
-	benchRegex := regexp.MustCompile(`^Benchmark(\w+)/(.+?)_(Latency|Upload|Download)(?:-\d+)?\s+\d+\s+([\d\.]+)\s+ns/op(?:\s+([\d\.]+)\s+MB/s)?`)
+	benchRegex := regexp.MustCompile(`^\s*Benchmark(H2|HTTP1|SSH)Transport(?:_E2E)?/(.+?)_(Upload|Download|Latency)(?:-\d+)?\s+(\d+)\s+([\d.]+)\s+ns/op(?:.*?\s+([\d.]+)\s+MB/s)?`)
 
 	results := make(map[string]*ScenarioResult)
 	var orderedKeys []string
@@ -50,11 +50,11 @@ func main() {
 		protocol := matches[1]
 		scenario := strings.ReplaceAll(matches[2], "_", " ")
 		metric := matches[3]
-		nsOpStr := matches[4]
+		nsOpStr := matches[5]
 		
 		mbpsStr := ""
-		if len(matches) >= 6 {
-			mbpsStr = matches[5]
+		if len(matches) >= 7 {
+			mbpsStr = matches[6]
 		}
 
 		key := protocol + "|" + scenario
@@ -75,10 +75,13 @@ func main() {
 		switch metric {
 		case "Latency":
 			res.Latency = nsOp / 1000000.0 // convert ns to ms
+			fmt.Printf("✅ [%s] %s - Latency: %.2f ms\n", protocol, scenario, res.Latency)
 		case "Upload":
 			res.Upload = mbps
+			fmt.Printf("✅ [%s] %s - Upload: %.2f MB/s\n", protocol, scenario, mbps)
 		case "Download":
 			res.Download = mbps
+			fmt.Printf("✅ [%s] %s - Download: %.2f MB/s\n", protocol, scenario, mbps)
 		}
 	}
 

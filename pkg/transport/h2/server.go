@@ -98,7 +98,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("Accepted stream for protocol %s from %s (Target: %s)", proto, r.RemoteAddr, target)
+	// log.Printf("Accepted stream for protocol %s from %s (Target: %s)", proto, r.RemoteAddr, target)
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
@@ -173,8 +173,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil && err != io.EOF {
-		errStr := err.Error()
-		if !utils.ContainsExpectedTeardownError(errStr) {
+		if !utils.ContainsExpectedTeardownError(err.Error()) {
 			log.Printf("Stream error: %v", err)
 		}
 	}

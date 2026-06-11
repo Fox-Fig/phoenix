@@ -6,8 +6,9 @@ fmt:
 	go fmt ./...
 
 test: build
-	@echo "Running modular test suite..."
-	go test -v ./pkg/testutils/... ./pkg/transport/... | ./bin/test-parser
+	@echo "Launching Test Runner..."
+	go build -o bin/tester cmd/tester/main.go
+	./bin/tester --mode=test
 
 gen-examples: build
 	@echo "Generating Auto-Documented Example Configurations..."
@@ -22,8 +23,9 @@ build:
 	go build -o bin/test-parser cmd/test-parser/main.go
 
 speedtest: build
-	@echo "Running Modular Benchmark Suite..."
-	go test -v -bench . ./pkg/transport/h2/... | ./bin/speedtest-parser
+	@echo "Launching Benchmark Runner..."
+	go build -o bin/tester cmd/tester/main.go
+	./bin/tester --mode=speedtest
 
 integration_test: build
 	go run cmd/integration_test/main.go

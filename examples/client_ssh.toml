@@ -1,43 +1,11 @@
-# Auto-generated Client (Comprehensive) Configuration Example
+# Auto-generated Client - SSH Tunneling Configuration Example
 # --------------------------------------------------------
 
 # The address and port of the remote Phoenix server (e.g., 'example.com:8080').
 remote_addr = "127.0.0.1:8080"
 
 # Transport protocol to use for the tunnel ('h2', 'ssh', 'http1').
-protocol = "h2"
-
-# [Requires Protocol: http1]
-# List of fake API paths to use for API Camouflage when protocol is 'http1'.
-# api_paths = ["/api/v1/sync", "/upload/media", "/config/sync"]
-
-
-# ═══════════════════════════════════════════════════════════
-#  Security
-# ═══════════════════════════════════════════════════════════
-# [Requires Protocol: h2]
-# Authentication token. Must match the server's auth_token.
-# auth_token = ""
-
-# [Requires Protocol: h2,http1]
-# Path to the client's Ed25519 private key file (PEM format) for mTLS.
-# private_key = ""
-
-# [Requires Protocol: h2,http1]
-# The exact Ed25519 public key of the server (Base64). Used for strict key pinning (One-Way TLS or mTLS).
-# server_public_key = ""
-
-# [Requires Protocol: h2,http1]
-# TLS verification mode. 'system' uses system CA (e.g. for CDNs). 'insecure' disables verification. Leave empty for strict Phoenix key pinning or cleartext.
-# tls_mode = "system"
-
-# [Requires Protocol: h2,http1]
-# Arbitrary SNI hostname to send during TLS handshake (SNI spoofing).
-# custom_sni = "google.com"
-
-# [Requires Protocol: h2,http1]
-# TLS ClientHello fingerprint. Options: 'chrome', 'firefox', 'safari', 'random', 'chrome_dynamic', or empty for none.
-# fingerprint = "chrome_dynamic"
+protocol = "ssh"
 
 
 # ═══════════════════════════════════════════════════════════

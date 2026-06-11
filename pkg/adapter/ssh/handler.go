@@ -3,7 +3,6 @@ package ssh
 import (
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"phoenix/pkg/utils"
 )
@@ -48,7 +47,7 @@ func HandleConnection(rw io.ReadWriteCloser, target string, dialer Dialer) error
 		target = "127.0.0.1:22"
 	}
 
-	log.Printf("[SSH] Tunneling to %s", target)
+	// log.Printf("[SSH] Tunneling to %s", target)
 	destConn, err := dialer.Dial("tcp", target)
 	if err != nil {
 		return fmt.Errorf("failed to dial SSH target %s: %v", target, err)

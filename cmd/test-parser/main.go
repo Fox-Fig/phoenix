@@ -19,7 +19,7 @@ func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	// Regex for finishing a test: --- PASS: TestH2Transport/Scenario_Name (0.50s)
-	resultRegex := regexp.MustCompile(`^\s*---\s+(PASS|FAIL|SKIP):\s+Test(\w+Transport)/(.*?)\s+\((.*?)\)`)
+	resultRegex := regexp.MustCompile(`^\s*--- (PASS|FAIL):\s+Test(H2|HTTP1|SSH)Transport(?:_E2E)?/([^ ]+)\s+\(([^)]+)\)`)
 
 	var results []*TestResult
 	var failedLogs []string

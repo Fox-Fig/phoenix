@@ -77,12 +77,13 @@ func GenerateTestScenarios() []SecurityScenario {
 }
 
 // RunTransportFunctionalSuite executes functional tests against the configured transport.
-func RunTransportFunctionalSuite(t *testing.T, scenarios []SecurityScenario) {
+func RunTransportFunctionalSuite(t *testing.T, transportProto string, scenarios []SecurityScenario) {
 	echoAddr := StartEchoServer()
 
 	for _, tc := range scenarios {
 		t.Run(tc.Name, func(t *testing.T) {
 			serverCfg := config.DefaultServerConfig()
+			serverCfg.Protocol = transportProto
 			serverCfg.ListenAddr = FindFreeAddr()
 			serverCfg.Security.EnableSSH = true
 			serverCfg.Security.AuthToken = tc.ServerAuthToken
@@ -100,6 +101,7 @@ func RunTransportFunctionalSuite(t *testing.T, scenarios []SecurityScenario) {
 			time.Sleep(500 * time.Millisecond) // Give server time to start
 
 			clientCfg := config.DefaultClientConfig()
+			clientCfg.Protocol = transportProto
 			clientCfg.RemoteAddr = serverCfg.ListenAddr
 			clientCfg.AuthToken = tc.ClientAuthToken
 			clientCfg.PrivateKeyPath = tc.ClientPrivateKey
@@ -135,7 +137,7 @@ func RunTransportFunctionalSuite(t *testing.T, scenarios []SecurityScenario) {
 }
 
 // RunTransportBenchmarkSuite executes speed tests and benchmarks (formerly cmd/speedtest).
-func RunTransportBenchmarkSuite(b *testing.B, scenarios []SecurityScenario) {
+func RunTransportBenchmarkSuite(b *testing.B, transportProto string, scenarios []SecurityScenario) {
 	echoAddr := StartEchoServer()
 	sinkAddr := StartSinkServer()
 	// Limit source to 50MB for benchmark iterations
@@ -144,6 +146,7 @@ func RunTransportBenchmarkSuite(b *testing.B, scenarios []SecurityScenario) {
 	for _, tc := range scenarios {
 		b.Run(tc.Name+"_Latency", func(b *testing.B) {
 			serverCfg := config.DefaultServerConfig()
+			serverCfg.Protocol = transportProto
 			serverCfg.ListenAddr = FindFreeAddr()
 			serverCfg.Security.EnableSSH = true
 			serverCfg.Security.AuthToken = tc.ServerAuthToken
@@ -154,6 +157,7 @@ func RunTransportBenchmarkSuite(b *testing.B, scenarios []SecurityScenario) {
 			time.Sleep(500 * time.Millisecond)
 
 			clientCfg := config.DefaultClientConfig()
+			clientCfg.Protocol = transportProto
 			clientCfg.RemoteAddr = serverCfg.ListenAddr
 			clientCfg.AuthToken = tc.ClientAuthToken
 			clientCfg.PrivateKeyPath = tc.ClientPrivateKey
@@ -179,6 +183,7 @@ func RunTransportBenchmarkSuite(b *testing.B, scenarios []SecurityScenario) {
 
 		b.Run(tc.Name+"_Upload", func(b *testing.B) {
 			serverCfg := config.DefaultServerConfig()
+			serverCfg.Protocol = transportProto
 			serverCfg.ListenAddr = FindFreeAddr()
 			serverCfg.Security.EnableSSH = true
 			serverCfg.Security.AuthToken = tc.ServerAuthToken
@@ -189,6 +194,7 @@ func RunTransportBenchmarkSuite(b *testing.B, scenarios []SecurityScenario) {
 			time.Sleep(500 * time.Millisecond)
 
 			clientCfg := config.DefaultClientConfig()
+			clientCfg.Protocol = transportProto
 			clientCfg.RemoteAddr = serverCfg.ListenAddr
 			clientCfg.AuthToken = tc.ClientAuthToken
 			clientCfg.PrivateKeyPath = tc.ClientPrivateKey
@@ -210,8 +216,12 @@ func RunTransportBenchmarkSuite(b *testing.B, scenarios []SecurityScenario) {
 				}
 				totalWritten := 0
 				for totalWritten < dataSize {
-					n, _ := stream.Write(chunk)
+					n, err := stream.Write(chunk)
 					totalWritten += n
+					if err != nil {
+						b.Fatalf("write failed after %d bytes: %v", totalWritten, err)
+						break
+					}
 				}
 				stream.Close()
 			}
@@ -219,6 +229,7 @@ func RunTransportBenchmarkSuite(b *testing.B, scenarios []SecurityScenario) {
 
 		b.Run(tc.Name+"_Download", func(b *testing.B) {
 			serverCfg := config.DefaultServerConfig()
+			serverCfg.Protocol = transportProto
 			serverCfg.ListenAddr = FindFreeAddr()
 			serverCfg.Security.EnableSSH = true
 			serverCfg.Security.AuthToken = tc.ServerAuthToken
@@ -229,6 +240,7 @@ func RunTransportBenchmarkSuite(b *testing.B, scenarios []SecurityScenario) {
 			time.Sleep(500 * time.Millisecond)
 
 			clientCfg := config.DefaultClientConfig()
+			clientCfg.Protocol = transportProto
 			clientCfg.RemoteAddr = serverCfg.ListenAddr
 			clientCfg.AuthToken = tc.ClientAuthToken
 			clientCfg.PrivateKeyPath = tc.ClientPrivateKey

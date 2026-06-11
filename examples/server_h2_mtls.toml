@@ -1,41 +1,21 @@
-# ═══════════════════════════════════════════════════════════
-#  Phoenix Server Configuration
-# ═══════════════════════════════════════════════════════════
+# Auto-generated Server - H2 Transport with Strict mTLS Configuration Example
+# --------------------------------------------------------
 
 # The address and port the server will bind to (e.g., 0.0.0.0:8080).
 listen_addr = "0.0.0.0:8080"
 
+# Transport protocol to use for the tunnel ('h2', 'ssh', 'http1').
+protocol = "h2"
+
 
 # ═══════════════════════════════════════════════════════════
-#  Security
+#  Security Controls
 # ═══════════════════════════════════════════════════════════
 # Security settings and protocol access controls.
 [security]
-
-# ─── Token Authentication ─────────────────────────────────────────────
 # Shared secret for application-level authentication. If set, clients must provide this exact token to connect.
 # auth_token = ""
 
-
-# ─── TLS / Key-Based Authentication ─────────────────────────────────────────────
-# Path to the server's Ed25519 private key file (PEM format) for TLS.
-# private_key = ""
-
-# List of authorized client Ed25519 public keys (Base64) for mTLS. If empty, mTLS is disabled.
-# authorized_clients = []
-
-
-# ─── SNI Controls ─────────────────────────────────────────────
-# List of allowed SNI hostnames for TLS handshake. Supports wildcard (*). Empty means all are accepted.
-# allowed_sni = []
-
-# Accept direct IP connections where the SNI field is empty during TLS handshake.
-allow_empty_sni = true
-
-
-# ═══════════════════════════════════════════════════════════
-#  Allowed Protocols
-# ═══════════════════════════════════════════════════════════
 # Enable or disable the SOCKS5 proxy protocol (TCP).
 enable_socks5 = false
 
@@ -48,18 +28,28 @@ enable_shadowsocks = false
 # Enable or disable SSH tunneling.
 enable_ssh = false
 
+# Path to the server's Ed25519 private key file (PEM format) for TLS.
+private_key = "server.key"
+
+# List of authorized client Ed25519 public keys (Base64) for mTLS. If empty, mTLS is disabled.
+authorized_clients = ["client_pub_base64"]
+
+# List of allowed SNI hostnames for TLS handshake. Supports wildcard (*). Empty means all are accepted.
+# allowed_sni = []
+
+# Accept direct IP connections where the SNI field is empty during TLS handshake.
+allow_empty_sni = true
+
 
 
 # ═══════════════════════════════════════════════════════════
-#  Outbound Relay (Optional)
+#  Outbound Relay
 # ═══════════════════════════════════════════════════════════
 # Outbound configuration for middle-server relay. If set, this server forwards traffic to another server.
 [outbound]
-# Type of outbound connection: 'direct' (default), 'phoenix' (relay to another Phoenix server), 'socks5', or 'forwarder' (raw TCP/UDP port forwarding).
+# Type of outbound connection: 'direct' (default), 'phoenix' (relay to another Phoenix server), or 'forwarder' (SOCKS5).
 type = "phoenix"
 
-
-# ─── SOCKS5 Forwarder Settings ─────────────────────────────────────────────
 # Username for SOCKS5 forwarder authentication.
 # socks5_user = ""
 
@@ -69,40 +59,52 @@ type = "phoenix"
 # The address and port of the remote Phoenix server (e.g., 'example.com:8080').
 remote_addr = "127.0.0.1:8080"
 
-# Transport protocol. 'h2' for HTTP/2 over TLS, 'h2c' for cleartext HTTP/2. Auto-detected from TLS settings if omitted.
-transport = "h2c"
+# Transport protocol to use for the tunnel ('h2', 'ssh', 'http1').
+protocol = "h2"
 
 
 # ═══════════════════════════════════════════════════════════
 #  Security
 # ═══════════════════════════════════════════════════════════
-
-# ─── Token Authentication ─────────────────────────────────────────────
-# Authentication token (shared secret). Must match the server's auth_token.
+# Authentication token. Must match the server's auth_token.
 # auth_token = ""
 
-
-# ─── Key-Based Authentication (Ed25519) ─────────────────────────────────────────────
 # Path to the client's Ed25519 private key file (PEM format) for mTLS.
-# private_key = ""
+private_key = "server.key"
 
 # The exact Ed25519 public key of the server (Base64). Used for strict key pinning (One-Way TLS or mTLS).
 # server_public_key = ""
 
-
-# ─── TLS Mode ─────────────────────────────────────────────
 # TLS verification mode. 'system' uses system CA (e.g. for CDNs). 'insecure' disables verification. Leave empty for strict Phoenix key pinning or cleartext.
 # tls_mode = "system"
 
-
-# ─── Custom SNI / SNI Spoofing ─────────────────────────────────────────────
 # Arbitrary SNI hostname to send during TLS handshake (SNI spoofing).
 # custom_sni = "google.com"
 
-
-# ─── TLS Fingerprint Spoofing ─────────────────────────────────────────────
 # TLS ClientHello fingerprint. Options: 'chrome', 'firefox', 'safari', 'random', 'chrome_dynamic', or empty for none.
 # fingerprint = "chrome_dynamic"
+
+
+# ═══════════════════════════════════════════════════════════
+#  Inbound Listeners
+# ═══════════════════════════════════════════════════════════
+# List of local inbound listeners (e.g., SOCKS5 or local port forwards).
+[[outbound.inbounds]]
+  # Protocol type for this inbound listener (e.g., 'socks5', 'ssh', 'shadowsocks').
+  protocol = ""
+
+  # Local address and port the client should listen on (e.g., '127.0.0.1:1080').
+  local_addr = ""
+
+  # Enable UDP Associate for SOCKS5 protocol.
+  enable_udp = true
+
+  # Remote destination address (mainly for SSH or direct Port Forwarding).
+  target_addr = ""
+
+  # Authentication string for specific protocols (e.g., Shadowsocks cypher:password).
+  auth = ""
+
 
 
 # ═══════════════════════════════════════════════════════════

@@ -40,27 +40,30 @@ type ClientConfig struct {
 	// RemoteAddr is the address of the Phoenix server (e.g., "example.com:8080").
 	RemoteAddr string `toml:"remote_addr" doc:"The address and port of the remote Phoenix server (e.g., 'example.com:8080')." default:"127.0.0.1:8080"`
 
+	// Protocol specifies the underlying transport protocol (e.g., "h2", "ssh", "http1").
+	Protocol string `toml:"protocol" doc:"Transport protocol to use for the tunnel ('h2', 'ssh', 'http1')." default:"h2"`
+
+	// APIPaths defines the list of fake API paths to use for HTTP/1 API Camouflage (only for protocol 'http1').
+	APIPaths []string `toml:"api_paths" protocol:"http1" doc:"List of fake API paths to use for API Camouflage when protocol is 'http1'." default:"[\"/api/v1/sync\", \"/upload/media\", \"/config/sync\"]" commented:"true"`
+
 	// AuthToken is sent to the server for authentication.
 	// Must match the server's auth_token.
-	AuthToken string `toml:"auth_token" group:"Security" doc:"Authentication token. Must match the server's auth_token." commented:"true"`
-
-	// ClientID is a unique identifier or token for authentication with the server (optional, for future use).
-	ClientID string `toml:"client_id,omitempty" doc:"Unique client identifier (for future use)." commented:"true"`
+	AuthToken string `toml:"auth_token" group:"Security" protocol:"h2" doc:"Authentication token. Must match the server's auth_token." commented:"true"`
 
 	// PrivateKeyPath is the path to the client's private key file (PEM).
-	PrivateKeyPath string `toml:"private_key" doc:"Path to the client's Ed25519 private key file (PEM format) for mTLS." commented:"true"`
+	PrivateKeyPath string `toml:"private_key" protocol:"h2,http1" doc:"Path to the client's Ed25519 private key file (PEM format) for mTLS." commented:"true"`
 
 	// ServerPublicKey is the detailed public key of the server (Base64).
-	ServerPublicKey string `toml:"server_public_key" doc:"The exact Ed25519 public key of the server (Base64). Used for strict key pinning (One-Way TLS or mTLS)." commented:"true"`
+	ServerPublicKey string `toml:"server_public_key" protocol:"h2,http1" doc:"The exact Ed25519 public key of the server (Base64). Used for strict key pinning (One-Way TLS or mTLS)." commented:"true"`
 
 	// TLSMode controls the TLS verification strategy.
 	// "system" = use system CA store (for CDN/Cloudflare setups)
 	// "" (empty) = use Phoenix Ed25519 pinning or h2c based on other fields
-	TLSMode string `toml:"tls_mode" doc:"TLS verification mode. 'system' uses system CA (e.g. for CDNs). 'insecure' disables verification. Leave empty for strict Phoenix key pinning or cleartext." default:"system" commented:"true"`
+	TLSMode string `toml:"tls_mode" protocol:"h2,http1" doc:"TLS verification mode. 'system' uses system CA (e.g. for CDNs). 'insecure' disables verification. Leave empty for strict Phoenix key pinning or cleartext." default:"system" commented:"true"`
 
 	// CustomSNI specifies an arbitrary SNI value to be sent during the TLS handshake.
 	// If set, it overrides the remote address's hostname.
-	CustomSNI string `toml:"custom_sni" doc:"Arbitrary SNI hostname to send during TLS handshake (SNI spoofing)." default:"google.com" commented:"true"`
+	CustomSNI string `toml:"custom_sni" protocol:"h2,http1" doc:"Arbitrary SNI hostname to send during TLS handshake (SNI spoofing)." default:"google.com" commented:"true"`
 
 	// Fingerprint controls TLS ClientHello fingerprint spoofing.
 	// Mimics a browser to bypass DPI-based filtering on some ISPs.
@@ -69,7 +72,7 @@ type ClientConfig struct {
 	// "firefox" → Mimic Firefox
 	// "safari"  → Mimic Safari
 	// "random"  → Random browser fingerprint per connection
-	Fingerprint string `toml:"fingerprint" doc:"TLS ClientHello fingerprint. Options: 'chrome', 'firefox', 'safari', 'random', 'chrome_dynamic', or empty for none." default:"chrome_dynamic" commented:"true"`
+	Fingerprint string `toml:"fingerprint" protocol:"h2,http1" doc:"TLS ClientHello fingerprint. Options: 'chrome', 'firefox', 'safari', 'random', 'chrome_dynamic', or empty for none." default:"chrome_dynamic" commented:"true"`
 
 	// Inbounds is a list of local listeners that the client will open.
 	// Each inbound corresponds to a specific protocol and local port.
@@ -82,6 +85,8 @@ type ClientConfig struct {
 // DefaultClientConfig returns a basic client configuration with a single SOCKS5 inbound.
 func DefaultClientConfig() *ClientConfig {
 	return &ClientConfig{
+		Protocol:   "h2",
+		APIPaths:   []string{"/api/v1/sync", "/upload/media", "/config/sync"},
 		RemoteAddr: "127.0.0.1:8080",
 		Inbounds: []ClientInbound{
 			{

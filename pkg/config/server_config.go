@@ -6,7 +6,7 @@ type ServerSecurity struct {
 	// AuthToken is a shared secret for application-level authentication.
 	// If set, clients must provide this exact token to connect.
 	// Works with all TLS modes (h2c, system, mTLS).
-	AuthToken string `toml:"auth_token" doc:"Shared secret for application-level authentication. If set, clients must provide this exact token to connect." commented:"true"`
+	AuthToken string `toml:"auth_token" protocol:"h2" doc:"Shared secret for application-level authentication. If set, clients must provide this exact token to connect." commented:"true"`
 
 	// EnableSOCKS5 enables or disables the SOCKS5 proxy protocol (TCP).
 	EnableSOCKS5 bool `toml:"enable_socks5" doc:"Enable or disable the SOCKS5 proxy protocol (TCP)."`
@@ -21,17 +21,17 @@ type ServerSecurity struct {
 	EnableSSH bool `toml:"enable_ssh" doc:"Enable or disable SSH tunneling."`
 
 	// PrivateKeyPath is the path to the server's private key file (PEM).
-	PrivateKeyPath string `toml:"private_key" doc:"Path to the server's Ed25519 private key file (PEM format) for TLS." commented:"true"`
+	PrivateKeyPath string `toml:"private_key" protocol:"h2,http1" doc:"Path to the server's Ed25519 private key file (PEM format) for TLS." commented:"true"`
 
 	// AuthorizedClientKeys is a list of authorized client public keys (Base64).
-	AuthorizedClientKeys []string `toml:"authorized_clients" doc:"List of authorized client Ed25519 public keys (Base64) for mTLS. If empty, mTLS is disabled." commented:"true"`
+	AuthorizedClientKeys []string `toml:"authorized_clients" protocol:"h2,http1" doc:"List of authorized client Ed25519 public keys (Base64) for mTLS. If empty, mTLS is disabled." commented:"true"`
 
 	// AllowedSNI restricts which SNI hostnames the server will accept during the TLS handshake.
 	// If empty, any SNI is accepted (standard Go behavior).
-	AllowedSNI []string `toml:"allowed_sni" doc:"List of allowed SNI hostnames for TLS handshake. Supports wildcard (*). Empty means all are accepted." commented:"true"`
+	AllowedSNI []string `toml:"allowed_sni" protocol:"h2,http1" doc:"List of allowed SNI hostnames for TLS handshake. Supports wildcard (*). Empty means all are accepted." commented:"true"`
 
 	// AllowEmptySNI determines if the server accepts direct IP connections where the SNI field is empty.
-	AllowEmptySNI bool `toml:"allow_empty_sni" doc:"Accept direct IP connections where the SNI field is empty during TLS handshake." default:"true"`
+	AllowEmptySNI bool `toml:"allow_empty_sni" protocol:"h2,http1" doc:"Accept direct IP connections where the SNI field is empty during TLS handshake." default:"true"`
 }
 
 // DefaultServerSecurity returns the default security configuration (all disabled by default).
@@ -47,8 +47,14 @@ func DefaultServerSecurity() ServerSecurity {
 // ServerConfig defines the full structure of the server configuration file.
 type ServerConfig struct {
 	// ListenAddr is the address and port the server will bind to (e.g., ":8080").
-	// This uses the underlying h2c protocol.
+	// This uses the underlying protocol.
 	ListenAddr string `toml:"listen_addr" doc:"The address and port the server will bind to (e.g., 0.0.0.0:8080)." default:"0.0.0.0:8080"`
+
+	// Protocol specifies the underlying transport protocol (e.g., "h2", "ssh", "http1").
+	Protocol string `toml:"protocol" doc:"Transport protocol to use for the tunnel ('h2', 'ssh', 'http1')." default:"h2"`
+
+	// APIPaths defines the list of fake API paths to use for HTTP/1 API Camouflage (only for protocol 'http1').
+	APIPaths []string `toml:"api_paths" protocol:"http1" doc:"List of fake API paths to use for API Camouflage when protocol is 'http1'." default:"[\"/api/v1/sync\", \"/upload/media\", \"/config/sync\"]" commented:"true"`
 
 	// Security defines the protocol access controls.
 	Security ServerSecurity `toml:"security" group:"Security Controls" doc:"Security settings and protocol access controls."`
@@ -71,6 +77,8 @@ type Outbound struct {
 // DefaultServerConfig returns a server configuration with safe defaults.
 func DefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
+		Protocol:   "h2",
+		APIPaths:   []string{"/api/v1/sync", "/upload/media", "/config/sync"},
 		ListenAddr: ":8080",
 		Security:   DefaultServerSecurity(),
 	}

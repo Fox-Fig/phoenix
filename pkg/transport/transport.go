@@ -5,7 +5,10 @@ import (
 	"log"
 
 	"phoenix/pkg/config"
+	"phoenix/pkg/transport/core"
 	"phoenix/pkg/transport/h2"
+	"phoenix/pkg/transport/http1"
+	"phoenix/pkg/transport/ssh"
 	"phoenix/pkg/underlay"
 )
 
@@ -18,15 +21,22 @@ func StartServer(cfg *config.ServerConfig) error {
 		return underlay.StartPortForwarder(cfg.ListenAddr, cfg.Outbound.RemoteAddr)
 	}
 
-	// 2. Setup Underlay (TLS or Cleartext)
+	// Setup Underlay
 	log.Printf("Initializing Underlay networking...")
+	var nextProtos []string
+	if cfg.Protocol == "http1" {
+		nextProtos = []string{"http/1.1"}
+	} else {
+		nextProtos = []string{"h2"}
+	}
+
 	underlayCfg := underlay.ServerConfig{
-		TLSEnabled:           cfg.Security.PrivateKeyPath != "",
+		TLSEnabled:           cfg.Security.PrivateKeyPath != "" && cfg.Protocol != "ssh", // SSH does its own crypto
 		PrivateKeyPath:       cfg.Security.PrivateKeyPath,
 		AuthorizedClientKeys: cfg.Security.AuthorizedClientKeys,
 		AllowedSNI:           cfg.Security.AllowedSNI,
 		AllowEmptySNI:        cfg.Security.AllowEmptySNI,
-		NextProtos:           []string{"h2"},
+		NextProtos:           nextProtos,
 	}
 
 	listener, err := underlay.Listen(cfg.ListenAddr, underlayCfg)
@@ -34,25 +44,50 @@ func StartServer(cfg *config.ServerConfig) error {
 		return fmt.Errorf("underlay listen failed: %v", err)
 	}
 
-	// 3. Mount H2 Transport on top of Underlay
+	// Mount Transport on top of Underlay
+	if cfg.Protocol == "ssh" {
+		log.Printf("Mounting SSH Transport on Underlay...")
+		sshServer, err := ssh.NewServer(cfg)
+		if err != nil {
+			return err
+		}
+		return sshServer.Serve(listener)
+	} else if cfg.Protocol == "http1" {
+		log.Printf("Mounting HTTP/1 API Camouflage Transport on Underlay...")
+		http1Server := http1.NewServer(cfg)
+		if cfg.Outbound != nil && cfg.Outbound.Type == "phoenix" {
+			http1Server.SetOutboundPhoenixClient(NewClient(&cfg.Outbound.ClientConfig))
+		}
+		return http1Server.Serve(listener)
+	}
+
 	log.Printf("Mounting H2 Transport on Underlay...")
 	h2Server, err := h2.NewServer(cfg)
 	if err != nil {
 		return err
 	}
 
-	// In the future, we will pass a core.StreamHandler. For now, h2 routes internally.
 	return h2Server.Serve(listener)
 }
 
 // Client is a wrapper for the transport client
 type Client struct {
-	*h2.Client
+	core.ClientTransport
 }
 
 // NewClient creates a new Client
 func NewClient(cfg *config.ClientConfig) *Client {
+	if cfg.Protocol == "ssh" {
+		return &Client{
+			ClientTransport: ssh.NewClient(cfg),
+		}
+	} else if cfg.Protocol == "http1" {
+		return &Client{
+			ClientTransport: http1.NewClient(cfg),
+		}
+	}
+	
 	return &Client{
-		Client: h2.NewClient(cfg),
+		ClientTransport: h2.NewClient(cfg),
 	}
 }

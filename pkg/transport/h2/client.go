@@ -257,3 +257,13 @@ func (s *Stream) Close() error {
 	}
 	return nil
 }
+
+// Close gracefully shuts down the HTTP/2 client connections.
+func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.httpClient != nil {
+		c.httpClient.CloseIdleConnections()
+	}
+	return nil
+}
